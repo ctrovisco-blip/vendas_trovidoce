@@ -54,14 +54,19 @@ def gerar(ficheiro_fonte=None):
         df_f.groupby(["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"])["Quantidade"]
         .sum().reset_index()
     )
-    meses = (
-        df_f.groupby(["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"])["Mes"]
-        .nunique().reset_index()
-    )
-    meses.columns = list(meses.columns[:-1]) + ["N_Meses"]
 
-    rel = qtd.merge(meses, on=["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"])
-    rel["Media Mensal"] = (rel["Quantidade"] / rel["N_Meses"]).round(1)
+    ano_atual = datetime.now().year
+    mes_atual = datetime.now().month
+
+    def divisor_media(ano):
+        if ano < ano_atual:
+            return 12
+        else:
+            return mes_atual
+
+    rel = qtd.copy()
+    rel["Divisor"] = rel["Ano"].apply(divisor_media)
+    rel["Media Mensal"] = (rel["Quantidade"] / rel["Divisor"]).round(1)
     rel = rel.sort_values(["N_ Vend_", "N_ Clie_", "Familia", "Ano"])
 
     # ── Excel ────────────────────────────────────────────────────────────────
