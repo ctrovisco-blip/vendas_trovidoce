@@ -115,17 +115,6 @@ def gerar(ficheiro_fonte=None):
                     cell.alignment = center
             row_num += 1
 
-        # Subtotal vendedor
-        total_cx = int(df_v["Quantidade"].sum())
-        for col in range(1, 10):
-            ws.cell(row=row_num, column=col).fill = subtotal_fill
-        t = ws.cell(row=row_num, column=1, value=f"TOTAL {vendedor}")
-        t.font = bold
-        for col, val in [(6, total_cx), (7, total_cx * KG_POR_CAIXA)]:
-            c = ws.cell(row=row_num, column=col, value=val)
-            c.font = bold
-            c.alignment = center
-        row_num += 1
 
     ws.freeze_panes = "A2"
 
