@@ -105,20 +105,31 @@ def gerar(ficheiro_fonte=None):
     s_corpo  = estilo("corpo", fontSize=9, fontName="Helvetica",
                       spaceAfter=4, leading=13)
 
+    s_cell      = ParagraphStyle("cell",      fontName="Helvetica",      fontSize=8, leading=10)
+    s_cell_bold = ParagraphStyle("cell_bold", fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=BRANCO)
+
+    def wrap(texto, bold=False):
+        """Converte texto em Paragraph para permitir quebra de linha na célula."""
+        return Paragraph(str(texto), s_cell_bold if bold else s_cell)
+
     def tabela(dados, col_widths, header_bg=AZUL_ESCURO, alt=True):
-        t = Table(dados, colWidths=col_widths, repeatRows=1)
+        # Converter header em Paragraphs bold brancos, restantes em Paragraphs normais
+        dados_p = []
+        for ri, row in enumerate(dados):
+            dados_p.append([wrap(c, bold=(ri==0)) for c in row])
+        t = Table(dados_p, colWidths=col_widths, repeatRows=1)
         cmd = [
             ("BACKGROUND", (0,0), (-1,0), header_bg),
             ("TEXTCOLOR",  (0,0), (-1,0), BRANCO),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
             ("FONTSIZE",   (0,0), (-1,-1), 8),
             ("ALIGN",      (0,0), (-1,-1), "CENTER"),
             ("ALIGN",      (0,1), (1,-1), "LEFT"),
             ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-            ("ROWHEIGHT",  (0,0), (-1,-1), 16),
             ("GRID",       (0,0), (-1,-1), 0.3, colors.HexColor("#CCCCCC")),
-            ("TOPPADDING", (0,0), (-1,-1), 3),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING",   (0,0), (-1,-1), 4),
+            ("RIGHTPADDING",  (0,0), (-1,-1), 4),
         ]
         if alt:
             for i in range(2, len(dados), 2):
@@ -261,19 +272,16 @@ def gerar(ficheiro_fonte=None):
         for _, row in perdidos_rel.iterrows():
             v = row["Vendedor"].split("/")[-1] if "/" in row["Vendedor"] else row["Vendedor"]
             perd_data.append([v, row["Cliente"], f"{int(row['Quantidade']):,}".replace(",",".")])
-        t_perd = tabela(perd_data, [4*cm, 9.5*cm, 2.5*cm])
+        t_perd = tabela(perd_data, [4*cm, 9.5*cm, 2.5*cm], header_bg=VERMELHO)
+        # sobrepor cor alternada vermelha clara
+        extra = [("BACKGROUND", (0,i), (-1,i), colors.HexColor("#FFF0F0")) for i in range(2, len(perd_data), 2)]
         t_perd.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), VERMELHO),
-            ("TEXTCOLOR",  (0,0), (-1,0), BRANCO),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-            ("FONTNAME",   (0,1), (-1,-1), "Helvetica"),
-            ("FONTSIZE",   (0,0), (-1,-1), 8),
-            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
-            ("ALIGN",      (0,1), (1,-1), "LEFT"),
-            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-            ("ROWHEIGHT",  (0,0), (-1,-1), 16),
             ("GRID",       (0,0), (-1,-1), 0.3, colors.HexColor("#CCCCCC")),
-            *[("BACKGROUND", (0,i), (-1,i), colors.HexColor("#FFF0F0")) for i in range(2, len(perd_data), 2)],
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            *extra,
         ]))
         story.append(t_perd)
 
@@ -298,18 +306,14 @@ def gerar(ficheiro_fonte=None):
             v = row["Vendedor"].split("/")[-1] if "/" in row["Vendedor"] else row["Vendedor"]
             nov_data.append([v, row["Cliente"], f"{int(row['Quantidade']):,}".replace(",",".")])
         t_nov = tabela(nov_data, [4*cm, 9.5*cm, 2.5*cm], header_bg=VERDE)
+        extra = [("BACKGROUND", (0,i), (-1,i), colors.HexColor("#F0FFF0")) for i in range(2, len(nov_data), 2)]
         t_nov.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), VERDE),
-            ("TEXTCOLOR",  (0,0), (-1,0), BRANCO),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-            ("FONTNAME",   (0,1), (-1,-1), "Helvetica"),
-            ("FONTSIZE",   (0,0), (-1,-1), 8),
-            ("ALIGN",      (0,0), (-1,-1), "CENTER"),
-            ("ALIGN",      (0,1), (1,-1), "LEFT"),
-            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-            ("ROWHEIGHT",  (0,0), (-1,-1), 16),
             ("GRID",       (0,0), (-1,-1), 0.3, colors.HexColor("#CCCCCC")),
-            *[("BACKGROUND", (0,i), (-1,i), colors.HexColor("#F0FFF0")) for i in range(2, len(nov_data), 2)],
+            ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            *extra,
         ]))
         story.append(t_nov)
 
