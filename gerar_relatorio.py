@@ -50,6 +50,23 @@ def gerar(ficheiro_fonte=None):
     df_f["Ano"] = df_f["Dt_ Emissao"].dt.year
     df_f["Mes"] = df_f["Dt_ Emissao"].dt.to_period("M")
 
+    # Resolver clientes com múltiplos nomes: usar o nome mais recente por código
+    nome_atual = (
+        df_f.sort_values("Dt_ Emissao")
+        .groupby("N_ Clie_")["Cliente"].last()
+        .reset_index()
+        .rename(columns={"Cliente": "Nome_Cliente"})
+    )
+    vendedor_cliente = (
+        df_f.groupby("N_ Clie_")["N_ Vend_"].agg(lambda x: x.value_counts().index[0])
+        .reset_index()
+    )
+    vendedor_nome = (
+        df_f[["N_ Vend_", "Vendedor"]].drop_duplicates()
+    )
+    df_f = df_f.merge(nome_atual, on="N_ Clie_")
+    df_f = df_f.drop(columns=["Cliente"]).rename(columns={"Nome_Cliente": "Cliente"})
+
     chave = ["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"]
 
     qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
