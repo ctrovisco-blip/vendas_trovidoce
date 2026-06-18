@@ -50,23 +50,19 @@ def gerar(ficheiro_fonte=None):
     df_f["Ano"] = df_f["Dt_ Emissao"].dt.year
     df_f["Mes"] = df_f["Dt_ Emissao"].dt.to_period("M")
 
-    qtd = (
-        df_f.groupby(["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"])["Quantidade"]
-        .sum().reset_index()
+    chave = ["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"]
+
+    qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
+
+    span = df_f.groupby(chave)["Mes"].agg(
+        primeiro_mes="min", ultimo_mes="max"
+    ).reset_index()
+    span["N_Meses"] = span.apply(
+        lambda r: (r["ultimo_mes"] - r["primeiro_mes"]).n + 1, axis=1
     )
 
-    ano_atual = datetime.now().year
-    mes_atual = datetime.now().month
-
-    def divisor_media(ano):
-        if ano < ano_atual:
-            return 12
-        else:
-            return mes_atual
-
-    rel = qtd.copy()
-    rel["Divisor"] = rel["Ano"].apply(divisor_media)
-    rel["Media Mensal"] = (rel["Quantidade"] / rel["Divisor"]).round(1)
+    rel = qtd.merge(span[chave + ["N_Meses"]], on=chave)
+    rel["Media Mensal"] = (rel["Quantidade"] / rel["N_Meses"]).round(1)
     rel = rel.sort_values(["N_ Vend_", "N_ Clie_", "Familia", "Ano"])
 
     # ── Excel ────────────────────────────────────────────────────────────────
