@@ -317,7 +317,71 @@ def gerar(ficheiro_fonte=None):
         ]))
         story.append(t_nov)
 
-    # ── Rodapé ──
+    # ── Avaliação de performance ──
+    story.append(Paragraph("7. Avaliação de Performance", s_secao))
+
+    # Cálculos
+    kg_perdidos    = int(perdidos_df["Quantidade"].sum() * KG_POR_CAIXA)
+    cx_perdidos    = int(perdidos_df["Quantidade"].sum())
+    kg_novos       = int(novos_df["Quantidade"].sum() * KG_POR_CAIXA)
+    cx_novos       = int(novos_df["Quantidade"].sum())
+    saldo_kg       = kg_novos - kg_perdidos
+    saldo_cx       = cx_novos - cx_perdidos
+    taxa_retencao  = (len(clientes_26) / len(clientes_25) * 100) if clientes_25 else 0
+    taxa_churn     = (len(perdidos) / len(clientes_25) * 100) if clientes_25 else 0
+
+    # Variação geral 2025 vs 2026 anualizado
+    var_abs = proj26 - ano25
+
+    # Texto de avaliação
+    saldo_cor   = "green" if saldo_kg >= 0 else "red"
+    saldo_sinal = "positivo" if saldo_kg >= 0 else "negativo"
+    var_cor     = "green" if var >= 0 else "red"
+
+    paragrafos = []
+
+    # § 1 — Tendência geral
+    paragrafos.append(
+        f"<b>Tendência geral:</b> Com base nos primeiros 6 meses de 2026, a projecção anual aponta para "
+        f"<b>{proj26:,} caixas ({proj26*KG_POR_CAIXA:,} kg)</b>, face às <b>{ano25:,} caixas ({ano25*KG_POR_CAIXA:,} kg)</b> "
+        f"registadas em 2025. Isso representa uma variação estimada de "
+        f"<font color='{var_cor}'><b>{var:+.1f}%</b></font> "
+        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} caixas / {abs(int(var_abs))*KG_POR_CAIXA:,} kg).".replace(",",".")
+    )
+
+    # § 2 — Retenção de clientes
+    paragrafos.append(
+        f"<b>Retenção de clientes:</b> Dos <b>{len(clientes_25)}</b> clientes activos em 2025, "
+        f"<b>{len(clientes_25) - len(perdidos)}</b> mantiveram compras em 2026 "
+        f"(taxa de retenção de <b>{taxa_retencao:.1f}%</b>). "
+        f"Os <b>{len(perdidos)}</b> clientes que não regressaram em 2026 representavam "
+        f"<b>{cx_perdidos} caixas / {kg_perdidos:,} kg</b> em 2025.".replace(",",".")
+    )
+
+    # § 3 — Captação vs. perda
+    paragrafos.append(
+        f"<b>Captação vs. perda:</b> Os <b>{len(novos)}</b> clientes novos captados em 2026 "
+        f"trouxeram <b>{cx_novos} caixas / {kg_novos:,} kg</b>. "
+        f"O saldo líquido entre captação e perda é "
+        f"<font color='{saldo_cor}'><b>{saldo_cx:+d} caixas / {saldo_kg:+,} kg</b></font> — "
+        f"{'os novos clientes <b>não compensam</b> o volume perdido pelos que saíram' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido pelos que saíram'}.".replace(",",".")
+    )
+
+    # § 4 — Nota sobre 2026 (apenas meio ano)
+    paragrafos.append(
+        f"<b>Nota:</b> Os dados de 2026 correspondem apenas a 6 meses (Janeiro–Junho). "
+        f"É possível que alguns dos {len(perdidos)} clientes classificados como \"perdidos\" retomem "
+        f"compras no segundo semestre, pelo que esta análise deve ser revisitada no final do ano."
+    )
+
+    s_aval = ParagraphStyle("aval", fontName="Helvetica", fontSize=9, leading=14,
+                             spaceAfter=8, leftIndent=4, rightIndent=4)
+    s_aval_primeiro = ParagraphStyle("aval0", parent=s_aval, spaceBefore=4)
+
+    for i, p in enumerate(paragrafos):
+        story.append(Paragraph(p.replace(",","."), s_aval_primeiro if i == 0 else s_aval))
+
+
     story.append(Spacer(1, 0.8*cm))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     story.append(Paragraph(
