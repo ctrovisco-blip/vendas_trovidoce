@@ -91,7 +91,7 @@ def gerar(ficheiro_fonte=None):
 
     rel = qtd.merge(span[chave + ["N_Meses"]], on=chave)
     rel["Media Mensal"] = (rel["Quantidade"] / rel["N_Meses"]).round(1)
-    rel = rel.sort_values(["N_ Vend_", "N_ Clie_", "Familia", "Ano"])
+    rel = rel.sort_values(["Cliente", "Familia", "Ano"])
 
     # ── Excel ────────────────────────────────────────────────────────────────
     wb = Workbook()
@@ -119,30 +119,28 @@ def gerar(ficheiro_fonte=None):
         ws.column_dimensions[get_column_letter(col)].width = w
 
     row_num = 2
-    for vendedor in rel.sort_values("N_ Vend_")["Vendedor"].unique():
-        df_v = rel[rel["Vendedor"] == vendedor]
-        shade = False
-        prev_cliente = None
+    shade = False
+    prev_cliente = None
 
-        for _, r in df_v.iterrows():
-            if r["N_ Clie_"] != prev_cliente:
-                shade = not shade
-                prev_cliente = r["N_ Clie_"]
+    for _, r in rel.iterrows():
+        if r["N_ Clie_"] != prev_cliente:
+            shade = not shade
+            prev_cliente = r["N_ Clie_"]
 
-            fill = alt_fill if shade else PatternFill()
-            qtd_cx = int(r["Quantidade"])
-            med_cx = r["Media Mensal"]
+        fill = alt_fill if shade else PatternFill()
+        qtd_cx = int(r["Quantidade"])
+        med_cx = r["Media Mensal"]
 
-            row_data = [
-                vendedor, int(r["N_ Clie_"]), r["Cliente"], r["Familia"], int(r["Ano"]),
-                qtd_cx, qtd_cx * KG_POR_CAIXA, med_cx, round(med_cx * KG_POR_CAIXA, 1),
-            ]
-            for col, val in enumerate(row_data, 1):
-                cell = ws.cell(row=row_num, column=col, value=val)
-                cell.fill = fill
-                if col >= 5:
-                    cell.alignment = center
-            row_num += 1
+        row_data = [
+            r["Vendedor"], int(r["N_ Clie_"]), r["Cliente"], r["Familia"], int(r["Ano"]),
+            qtd_cx, qtd_cx * KG_POR_CAIXA, med_cx, round(med_cx * KG_POR_CAIXA, 1),
+        ]
+        for col, val in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col, value=val)
+            cell.fill = fill
+            if col >= 5:
+                cell.alignment = center
+        row_num += 1
 
 
     ws.freeze_panes = "A2"
