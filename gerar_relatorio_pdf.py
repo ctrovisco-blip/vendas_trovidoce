@@ -37,11 +37,20 @@ BRANCO       = colors.white
 
 
 def encontrar_ficheiro_fonte():
-    padrao = os.path.join(PASTA_FONTE, "*.xlsx")
+    """Procura o ficheiro de dados na pasta fonte pelo nome esperado."""
+    nome_esperado = "COLAR AQUI para Analise Familias.xlsx"
+    caminho = os.path.join(PASTA_FONTE, nome_esperado)
+    if os.path.exists(caminho):
+        return caminho
+    # fallback: qualquer ficheiro com "COLAR AQUI" no nome
+    padrao = os.path.join(PASTA_FONTE, "*COLAR AQUI*.xlsx")
     ficheiros = glob.glob(padrao)
-    if not ficheiros:
-        raise FileNotFoundError(f"Nenhum ficheiro .xlsx encontrado em:\n  {PASTA_FONTE}")
-    return max(ficheiros, key=os.path.getmtime)
+    if ficheiros:
+        return max(ficheiros, key=os.path.getmtime)
+    raise FileNotFoundError(
+        f"Ficheiro '{nome_esperado}' não encontrado em:\n  {PASTA_FONTE}\n"
+        f"Certifica-te que o ficheiro está na pasta correcta."
+    )
 
 
 def preparar_dados(ficheiro_fonte):
