@@ -73,7 +73,7 @@ def preparar_dados(ficheiro_fonte):
     qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
     span = df_f.groupby(chave)["Dt_ Emissao"].agg(primeira_compra="min", ultima_compra="max").reset_index()
     span["N_Meses"] = span.apply(
-        lambda r: max(((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES), 1/DIAS_MES),
+        lambda r: max((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES, 1.0),
         axis=1
     )
     rel = qtd.merge(span[chave + ["N_Meses"]], on=chave)

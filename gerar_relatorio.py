@@ -85,7 +85,7 @@ def gerar(ficheiro_fonte=None):
 
     DIAS_MES = 30.44
     span["N_Meses"] = span.apply(
-        lambda r: max(((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES), 1/DIAS_MES),
+        lambda r: max((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES, 1.0),
         axis=1
     )
 
