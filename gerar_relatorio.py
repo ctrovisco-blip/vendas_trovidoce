@@ -71,11 +71,14 @@ def gerar(ficheiro_fonte=None):
 
     qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
 
-    span = df_f.groupby(chave)["Mes"].agg(
-        primeiro_mes="min", ultimo_mes="max"
+    span = df_f.groupby(chave)["Dt_ Emissao"].agg(
+        primeira_compra="min", ultima_compra="max"
     ).reset_index()
+
+    DIAS_MES = 30.44
     span["N_Meses"] = span.apply(
-        lambda r: (r["ultimo_mes"] - r["primeiro_mes"]).n + 1, axis=1
+        lambda r: max(((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES), 1/DIAS_MES),
+        axis=1
     )
 
     rel = qtd.merge(span[chave + ["N_Meses"]], on=chave)

@@ -59,10 +59,14 @@ def preparar_dados(ficheiro_fonte):
     df_f = df_f.merge(nome_atual, on="N_ Clie_")
     df_f["Cliente"] = df_f["Nome"]
 
+    DIAS_MES = 30.44
     chave = ["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"]
     qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
-    span = df_f.groupby(chave)["Mes"].agg(primeiro="min", ultimo="max").reset_index()
-    span["N_Meses"] = span.apply(lambda r: (r["ultimo"] - r["primeiro"]).n + 1, axis=1)
+    span = df_f.groupby(chave)["Dt_ Emissao"].agg(primeira_compra="min", ultima_compra="max").reset_index()
+    span["N_Meses"] = span.apply(
+        lambda r: max(((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES), 1/DIAS_MES),
+        axis=1
+    )
     rel = qtd.merge(span[chave + ["N_Meses"]], on=chave)
     rel["Media"] = (rel["Quantidade"] / rel["N_Meses"]).round(1)
 
