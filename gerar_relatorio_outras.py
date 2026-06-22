@@ -27,8 +27,7 @@ EXCLUIR = [
     "Sical Grão Kg",  "Sical Decafe Grão Kg",
     "Christina Grão Kg", "Christina Decafe Grão Kg",
 ]
-KG_POR_CAIXA = 6
-DIAS_MES     = 30.44
+DIAS_MES = 30.44
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -104,10 +103,9 @@ def gerar(ficheiro_fonte=None):
     headers = [
         "Vendedor", "Cód. Cliente", "Nome Cliente",
         "Família", "Ano",
-        "Qtd Total (cx)", "Qtd Total (kg)",
-        "Média Mensal (cx)", "Média Mensal (kg)",
+        "Qtd Total", "Média Mensal",
     ]
-    widths = [28, 14, 52, 32, 8, 15, 15, 18, 18]
+    widths = [28, 14, 52, 32, 8, 15, 18]
 
     for col, (h, w) in enumerate(zip(headers, widths), 1):
         cell = ws.cell(row=1, column=col, value=h)
@@ -126,14 +124,11 @@ def gerar(ficheiro_fonte=None):
             prev_cliente = r["N_ Clie_"]
 
         fill = alt_fill if shade else PatternFill()
-        qtd_cx = int(r["Quantidade"])
-        med_cx = r["Media Mensal"]
 
         row_data = [
             r["Vendedor"], int(r["N_ Clie_"]), r["Cliente"],
             r["Familia_Det"], int(r["Ano"]),
-            qtd_cx, qtd_cx * KG_POR_CAIXA,
-            med_cx, round(med_cx * KG_POR_CAIXA, 1),
+            int(r["Quantidade"]), r["Media Mensal"],
         ]
         for col, val in enumerate(row_data, 1):
             cell = ws.cell(row=row_num, column=col, value=val)

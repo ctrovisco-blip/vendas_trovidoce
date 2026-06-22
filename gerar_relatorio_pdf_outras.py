@@ -31,8 +31,7 @@ EXCLUIR = [
     "Sical Grão Kg",  "Sical Decafe Grão Kg",
     "Christina Grão Kg", "Christina Decafe Grão Kg",
 ]
-KG_POR_CAIXA = 6
-DIAS_MES     = 30.44
+DIAS_MES = 30.44
 
 # Cores
 AZUL_ESCURO       = colors.HexColor("#1F4E79")
@@ -161,8 +160,7 @@ def gerar(ficheiro_fonte=None):
 
     story = []
 
-    total_cx   = rel["Quantidade"].sum()
-    total_kg   = total_cx * KG_POR_CAIXA
+    total_un   = rel["Quantidade"].sum()
     ano25      = rel[rel["Ano"] == 2025]["Quantidade"].sum()
     ano26      = rel[rel["Ano"] == 2026]["Quantidade"].sum()
     proj26     = ano26 * 2
@@ -201,16 +199,15 @@ def gerar(ficheiro_fonte=None):
 
     # ── KPIs ──
     kpi_data = [
-        ["Total Caixas", "Total Kg", "Nº Clientes", "Nº Vendedores", "Nº Famílias"],
+        ["Total Unidades", "Nº Clientes", "Nº Vendedores", "Nº Famílias"],
         [
-            f"{total_cx:,}".replace(",", "."),
-            f"{total_kg:,}".replace(",", "."),
+            f"{total_un:,}".replace(",", "."),
             str(rel["N_ Clie_"].nunique()),
             str(rel[~rel["Vendedor"].isin(["Vendas Internas", "14/Armazém"])]["Vendedor"].nunique()),
             str(rel["Familia_Det"].nunique()),
         ]
     ]
-    t_kpi = Table(kpi_data, colWidths=[3.2*cm]*5)
+    t_kpi = Table(kpi_data, colWidths=[4*cm]*4)
     t_kpi.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), AZUL_ESCURO),
         ("BACKGROUND", (0, 1), (-1, 1), AZUL_CLARO),
@@ -233,16 +230,16 @@ def gerar(ficheiro_fonte=None):
     story.append(Paragraph("1. Evolução Anual", s_secao))
     var_cor = "red" if var < 0 else "green"
     story.append(Paragraph(
-        f"Em 2025 foram vendidas <b>{ano25:,}</b> caixas. Nos primeiros 6 meses de 2026 foram vendidas "
-        f"<b>{ano26:,}</b> caixas, o que projectado para o ano completo representa <b>{proj26:,}</b> caixas — "
+        f"Em 2025 foram vendidas <b>{ano25:,}</b> unidades. Nos primeiros 6 meses de 2026 foram vendidas "
+        f"<b>{ano26:,}</b> unidades, o que projectado para o ano completo representa <b>{proj26:,}</b> unidades — "
         f"uma variação estimada de <font color='{var_cor}'><b>{var:+.1f}%</b></font> face a 2025.".replace(",", "."),
         s_corpo
     ))
-    evo_data = [["Ano", "Caixas (real)", "Kg (real)", "Projecção anual (cx)", "Variação"]]
-    evo_data.append(["2025", f"{ano25:,}".replace(",","."), f"{ano25*KG_POR_CAIXA:,}".replace(",","."), "—", "—"])
-    evo_data.append(["2026", f"{ano26:,}".replace(",","."), f"{ano26*KG_POR_CAIXA:,}".replace(",","."),
+    evo_data = [["Ano", "Unidades (real)", "Projecção anual (un.)", "Variação"]]
+    evo_data.append(["2025", f"{ano25:,}".replace(",","."), "—", "—"])
+    evo_data.append(["2026", f"{ano26:,}".replace(",","."),
                      f"{proj26:,}".replace(",","."), f"{var:+.1f}%"])
-    t_evo = tabela(evo_data, [2*cm, 3*cm, 3*cm, 4*cm, 3*cm])
+    t_evo = tabela(evo_data, [2.5*cm, 4*cm, 5*cm, 3.5*cm])
     t_evo.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), AZUL_ESCURO),
         ("FONTSIZE",   (0, 0), (-1, -1), 9),
@@ -250,8 +247,8 @@ def gerar(ficheiro_fonte=None):
         ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
         ("GRID",       (0, 0), (-1, -1), 0.3, colors.HexColor("#CCCCCC")),
         ("BACKGROUND", (0, 2), (-1, 2), AZUL_MUITO_CLARO),
-        ("TEXTCOLOR",  (4, 2), (4, 2), VERMELHO if var < 0 else VERDE),
-        ("FONTNAME",   (4, 2), (4, 2), "Helvetica-Bold"),
+        ("TEXTCOLOR",  (3, 2), (3, 2), VERMELHO if var < 0 else VERDE),
+        ("FONTNAME",   (3, 2), (3, 2), "Helvetica-Bold"),
         ("TOPPADDING",    (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
@@ -262,31 +259,29 @@ def gerar(ficheiro_fonte=None):
     # ── 2. Top famílias ──
     story.append(Paragraph("2. Top 20 Famílias — Período Total", s_secao))
     pf = rel.groupby("Familia_Det")["Quantidade"].sum().sort_values(ascending=False).head(20)
-    fam_data = [["#", "Família", "Caixas", "Kg", "% Total"]]
+    fam_data = [["#", "Família", "Unidades", "% Total"]]
     for i, (f, q) in enumerate(pf.items(), 1):
-        fam_data.append([str(i), f, f"{q:,}".replace(",","."),
-                         f"{q*KG_POR_CAIXA:,}".replace(",","."), f"{q/total_cx*100:.1f}%"])
-    story.append(tabela(fam_data, [0.8*cm, 8*cm, 2.5*cm, 2.5*cm, 2.2*cm]))
+        fam_data.append([str(i), f, f"{q:,}".replace(",","."), f"{q/total_un*100:.1f}%"])
+    story.append(tabela(fam_data, [0.8*cm, 9.5*cm, 3*cm, 2.7*cm]))
 
     # ── 3. Por vendedor ──
     story.append(Paragraph("3. Desempenho por Vendedor", s_secao))
     pv = rel.groupby("Vendedor")["Quantidade"].sum().sort_values(ascending=False)
-    vend_data = [["Vendedor", "Caixas", "Kg", "% Total", "Nº Clientes"]]
+    vend_data = [["Vendedor", "Unidades", "% Total", "Nº Clientes"]]
     for v, q in pv.items():
         nc = rel[rel["Vendedor"] == v]["N_ Clie_"].nunique()
-        vend_data.append([v, f"{q:,}".replace(",","."), f"{q*KG_POR_CAIXA:,}".replace(",","."),
-                          f"{q/total_cx*100:.1f}%", str(nc)])
-    story.append(tabela(vend_data, [5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm]))
+        vend_data.append([v, f"{q:,}".replace(",","."),
+                          f"{q/total_un*100:.1f}%", str(nc)])
+    story.append(tabela(vend_data, [6.5*cm, 3*cm, 3*cm, 3.5*cm]))
 
     # ── 4. Top 15 clientes ──
     story.append(Paragraph("4. Top 15 Clientes — Período Total", s_secao))
     pc = rel.groupby(["N_ Clie_", "Cliente", "Vendedor"])["Quantidade"].sum().sort_values(ascending=False).head(15)
-    top_data = [["#", "Cliente", "Vendedor", "Caixas", "Kg", "% Total"]]
+    top_data = [["#", "Cliente", "Vendedor", "Unidades", "% Total"]]
     for i, ((cod, nome, vend), q) in enumerate(pc.items(), 1):
         v = vend.split("/")[-1] if "/" in vend else vend
-        top_data.append([str(i), nome, v, f"{q:,}".replace(",","."),
-                         f"{q*KG_POR_CAIXA:,}".replace(",","."), f"{q/total_cx*100:.1f}%"])
-    story.append(tabela(top_data, [0.8*cm, 6.5*cm, 3*cm, 2*cm, 2*cm, 1.7*cm]))
+        top_data.append([str(i), nome, v, f"{q:,}".replace(",","."), f"{q/total_un*100:.1f}%"])
+    story.append(tabela(top_data, [0.8*cm, 7*cm, 3.5*cm, 2.5*cm, 2.2*cm]))
 
     # ── 5. Alertas ──
     story.append(Paragraph("5. Alertas — Clientes em Risco", s_secao))
@@ -322,33 +317,30 @@ def gerar(ficheiro_fonte=None):
     # ── 7. Avaliação ──
     story.append(Paragraph("7. Avaliação de Performance", s_secao))
 
-    kg_perdidos = int(perdidos_df["Quantidade"].sum() * KG_POR_CAIXA)
-    cx_perdidos = int(perdidos_df["Quantidade"].sum())
-    kg_novos    = int(novos_df["Quantidade"].sum() * KG_POR_CAIXA)
-    cx_novos    = int(novos_df["Quantidade"].sum())
-    saldo_kg    = kg_novos - kg_perdidos
-    saldo_cx    = cx_novos - cx_perdidos
+    un_perdidas = int(perdidos_df["Quantidade"].sum())
+    un_novas    = int(novos_df["Quantidade"].sum())
+    saldo_un    = un_novas - un_perdidas
     tx_retencao = (len(clientes_26) / len(clientes_25) * 100) if clientes_25 else 0
-    saldo_cor   = "green" if saldo_kg >= 0 else "red"
+    saldo_cor   = "green" if saldo_un >= 0 else "red"
     var_cor2    = "green" if var >= 0 else "red"
 
     paragrafos = [
         f"<b>Tendência geral:</b> Com base nos primeiros 6 meses de 2026, a projecção anual aponta para "
-        f"<b>{proj26:,} caixas ({proj26*KG_POR_CAIXA:,} kg)</b>, face às <b>{ano25:,} caixas "
-        f"({ano25*KG_POR_CAIXA:,} kg)</b> registadas em 2025. Isso representa uma variação estimada de "
+        f"<b>{proj26:,} unidades</b>, face às <b>{ano25:,} unidades</b> registadas em 2025. "
+        f"Isso representa uma variação estimada de "
         f"<font color='{var_cor2}'><b>{var:+.1f}%</b></font> "
-        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} caixas / {abs(int(var_abs))*KG_POR_CAIXA:,} kg).".replace(",", "."),
+        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} unidades).".replace(",", "."),
 
         f"<b>Retenção de clientes:</b> Dos <b>{len(clientes_25)}</b> clientes activos em 2025, "
         f"<b>{len(clientes_25) - len(perdidos)}</b> mantiveram compras em 2026 "
         f"(taxa de retenção de <b>{tx_retencao:.1f}%</b>). "
         f"Os <b>{len(perdidos)}</b> clientes que não regressaram em 2026 representavam "
-        f"<b>{cx_perdidos:,} caixas / {kg_perdidos:,} kg</b> em 2025.".replace(",", "."),
+        f"<b>{un_perdidas:,} unidades</b> em 2025.".replace(",", "."),
 
         f"<b>Captação vs. perda:</b> Os <b>{len(novos)}</b> clientes novos captados em 2026 "
-        f"trouxeram <b>{cx_novos:,} caixas / {kg_novos:,} kg</b>. "
-        f"O saldo líquido é <font color='{saldo_cor}'><b>{saldo_cx:+d} caixas / {saldo_kg:+,} kg</b></font> — "
-        f"{'os novos clientes <b>não compensam</b> o volume perdido' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido'}.".replace(",", "."),
+        f"trouxeram <b>{un_novas:,} unidades</b>. "
+        f"O saldo líquido é <font color='{saldo_cor}'><b>{saldo_un:+,} unidades</b></font> — "
+        f"{'os novos clientes <b>não compensam</b> o volume perdido' if saldo_un < 0 else 'os novos clientes <b>superam</b> o volume perdido'}.".replace(",", "."),
 
         f"<b>Nota:</b> Os dados de 2026 correspondem apenas a 6 meses (Janeiro–Junho). "
         f"Alguns dos {len(perdidos)} clientes classificados como \"perdidos\" podem retomar "
