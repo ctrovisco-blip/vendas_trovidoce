@@ -330,8 +330,111 @@ def gerar(ficheiro_fonte=None):
         ]))
         story.append(t_nov)
 
+    # ── Análise por vendedor ──
+    story.append(Paragraph("7. Análise por Vendedor", s_secao))
+    story.append(Paragraph(
+        "Evolução da carteira de cada vendedor entre 2025 e 2026 (Janeiro–Junho): clientes mantidos, "
+        "perdidos e captados, taxa de retenção e projecção de volume para o ano completo de 2026.",
+        s_corpo
+    ))
+
+    # Cálculos por vendedor (excluindo estruturas não comerciais)
+    excluir_vend = ["Vendas Internas", "14/Armazém"]
+    vendedores_ord = [v for v in rel.sort_values("N_ Vend_")["Vendedor"].unique() if v not in excluir_vend]
+
+    vend_rows = []
+    for v in vendedores_ord:
+        dv = rel[rel["Vendedor"] == v]
+        c25 = set(dv[dv["Ano"] == 2025]["N_ Clie_"])
+        c26 = set(dv[dv["Ano"] == 2026]["N_ Clie_"])
+        mantidos = len(c25 & c26)
+        perd_v   = len(c25 - c26)
+        novos_v  = len(c26 - c25)
+        retencao = (len(c25 & c26) / len(c25) * 100) if c25 else 0
+        q25 = int(dv[dv["Ano"] == 2025]["Quantidade"].sum())
+        q26 = int(dv[dv["Ano"] == 2026]["Quantidade"].sum())
+        proj = q26 * 2
+        var_v = ((proj - q25) / q25 * 100) if q25 else 0
+        vend_rows.append({
+            "vendedor": v, "c25": len(c25), "c26": len(c26),
+            "mantidos": mantidos, "perdidos": perd_v, "novos": novos_v,
+            "retencao": retencao, "q25": q25, "q26": q26, "proj": proj, "var": var_v,
+        })
+
+    # Tabela: clientes por vendedor
+    vend_cli = [["Vendedor", "Clientes<br/>2025", "Clientes<br/>2026", "Mantidos", "Perdidos", "Novos", "Retenção"]]
+    for r in vend_rows:
+        vend_cli.append([
+            r["vendedor"], str(r["c25"]), str(r["c26"]),
+            str(r["mantidos"]), str(r["perdidos"]), str(r["novos"]),
+            f"{r['retencao']:.0f}%",
+        ])
+    t_vc = tabela(vend_cli, [4.3*cm, 1.9*cm, 1.9*cm, 2*cm, 2*cm, 1.6*cm, 2*cm])
+    # colorir coluna retenção e perdidos
+    extra_vc = []
+    for i, r in enumerate(vend_rows, start=1):
+        if r["retencao"] >= 90:
+            extra_vc.append(("TEXTCOLOR", (6, i), (6, i), VERDE))
+        elif r["retencao"] < 80:
+            extra_vc.append(("TEXTCOLOR", (6, i), (6, i), VERMELHO))
+        if r["perdidos"] > r["novos"]:
+            extra_vc.append(("TEXTCOLOR", (4, i), (4, i), VERMELHO))
+    t_vc.setStyle(TableStyle(extra_vc))
+    story.append(t_vc)
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph(
+        "Retenção: % de clientes de 2025 que voltaram a comprar em 2026 "
+        "(<font color='green'>verde ≥ 90%</font>, <font color='red'>vermelho &lt; 80%</font>).",
+        s_nota
+    ))
+    story.append(Spacer(1, 0.35*cm))
+
+    # Tabela: volume e projecção por vendedor
+    vend_vol = [["Vendedor", "Qtd 2025<br/>(cx)", "Qtd 2026<br/>6m (cx)", "Projecção<br/>2026 (cx)", "Variação"]]
+    for r in vend_rows:
+        vend_vol.append([
+            r["vendedor"],
+            f"{r['q25']:,}".replace(",","."),
+            f"{r['q26']:,}".replace(",","."),
+            f"{r['proj']:,}".replace(",","."),
+            f"{r['var']:+.1f}%",
+        ])
+    t_vv = tabela(vend_vol, [4.3*cm, 2.8*cm, 2.8*cm, 2.8*cm, 2.8*cm])
+    extra_vv = []
+    for i, r in enumerate(vend_rows, start=1):
+        extra_vv.append(("TEXTCOLOR", (4, i), (4, i), VERDE if r["var"] >= 0 else VERMELHO))
+    t_vv.setStyle(TableStyle(extra_vv))
+    story.append(t_vv)
+    story.append(Spacer(1, 0.15*cm))
+    story.append(Paragraph(
+        "* Projecção 2026 = volume dos primeiros 6 meses × 2.", s_nota
+    ))
+    story.append(Spacer(1, 0.35*cm))
+
+    # Comentário automático: melhores e piores
+    if vend_rows:
+        top_ret  = max(vend_rows, key=lambda r: r["retencao"])
+        low_ret  = min(vend_rows, key=lambda r: r["retencao"])
+        top_cres = max(vend_rows, key=lambda r: r["var"])
+        low_cres = min(vend_rows, key=lambda r: r["var"])
+        top_capt = max(vend_rows, key=lambda r: r["novos"])
+
+        coment = (
+            f"<b>Destaques:</b> Em retenção de clientes, <b>{top_ret['vendedor']}</b> lidera "
+            f"(<font color='green'>{top_ret['retencao']:.0f}%</font>), enquanto "
+            f"<b>{low_ret['vendedor']}</b> apresenta a taxa mais baixa "
+            f"(<font color='red'>{low_ret['retencao']:.0f}%</font>) e merece acompanhamento. "
+            f"Em tendência de volume, <b>{top_cres['vendedor']}</b> tem a melhor projecção "
+            f"(<font color='{'green' if top_cres['var']>=0 else 'red'}'>{top_cres['var']:+.1f}%</font>) "
+            f"e <b>{low_cres['vendedor']}</b> a mais desfavorável "
+            f"(<font color='{'green' if low_cres['var']>=0 else 'red'}'>{low_cres['var']:+.1f}%</font>). "
+            f"Na captação de novos clientes destaca-se <b>{top_capt['vendedor']}</b> "
+            f"com {top_capt['novos']} novos clientes em 2026."
+        )
+        story.append(Paragraph(coment, s_corpo))
+
     # ── Avaliação de performance ──
-    story.append(Paragraph("7. Avaliação de Performance", s_secao))
+    story.append(Paragraph("8. Avaliação de Performance", s_secao))
 
     # Cálculos
     kg_perdidos    = int(perdidos_df["Quantidade"].sum() * KG_POR_CAIXA)
