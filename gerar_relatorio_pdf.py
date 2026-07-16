@@ -13,7 +13,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak
+    HRFlowable, PageBreak, KeepTogether
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
@@ -110,13 +110,14 @@ def gerar(ficheiro_fonte=None):
                       fontName="Helvetica", alignment=TA_CENTER, spaceAfter=12)
     s_secao  = estilo("secao", fontSize=12, textColor=BRANCO,
                       fontName="Helvetica-Bold", alignment=TA_LEFT,
-                      backColor=AZUL_ESCURO, leftIndent=6, spaceAfter=8, spaceBefore=14)
+                      backColor=AZUL_ESCURO, leftIndent=6, spaceAfter=8, spaceBefore=14,
+                      keepWithNext=1)
     s_nota   = estilo("nota", fontSize=8, textColor=colors.grey,
                       fontName="Helvetica-Oblique", alignment=TA_LEFT)
     s_alerta = estilo("alerta", fontSize=9, textColor=VERMELHO,
                       fontName="Helvetica-Bold")
     s_corpo  = estilo("corpo", fontSize=9, fontName="Helvetica",
-                      spaceAfter=4, leading=13)
+                      spaceAfter=4, leading=13, keepWithNext=1)
 
     s_cell      = ParagraphStyle("cell",      fontName="Helvetica",      fontSize=8, leading=10)
     s_cell_bold = ParagraphStyle("cell_bold", fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=BRANCO)
@@ -227,7 +228,7 @@ def gerar(ficheiro_fonte=None):
         ("TEXTCOLOR",  (4,2), (4,2), VERMELHO if var < 0 else VERDE),
         ("FONTNAME",   (4,2), (4,2), "Helvetica-Bold"),
     ]))
-    story.append(t_evo)
+    story.append(KeepTogether(t_evo))
     story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph("* Projecção 2026 calculada com base nos primeiros 6 meses (×2).", s_nota))
 
@@ -237,7 +238,7 @@ def gerar(ficheiro_fonte=None):
     fam_data = [["Família", "Caixas", "Kg", "% Total"]]
     for f, q in pf.items():
         fam_data.append([f, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."), f"{q/total_cx*100:.1f}%"])
-    story.append(tabela(fam_data, [7*cm, 3*cm, 3*cm, 3*cm]))
+    story.append(KeepTogether(tabela(fam_data, [7*cm, 3*cm, 3*cm, 3*cm])))
 
     # ── Por vendedor ──
     story.append(Paragraph("3. Desempenho por Vendedor", s_secao))
@@ -247,7 +248,7 @@ def gerar(ficheiro_fonte=None):
         nc = rel[rel["Vendedor"]==v]["N_ Clie_"].nunique()
         vend_data.append([v, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
                           f"{q/total_cx*100:.1f}%", str(nc)])
-    story.append(tabela(vend_data, [5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm]))
+    story.append(KeepTogether(tabela(vend_data, [5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])))
 
     # ── Top 15 clientes ──
     story.append(Paragraph("4. Top 15 Clientes — Período Total", s_secao))
@@ -257,7 +258,7 @@ def gerar(ficheiro_fonte=None):
         top_data.append([str(i), nome, vend.split("/")[-1] if "/" in vend else vend,
                          f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
                          f"{q/total_cx*100:.1f}%"])
-    story.append(tabela(top_data, [0.8*cm, 6.5*cm, 3*cm, 2*cm, 2*cm, 1.7*cm]))
+    story.append(KeepTogether(tabela(top_data, [0.8*cm, 6.5*cm, 3*cm, 2*cm, 2*cm, 1.7*cm])))
 
     # ── Alertas ──
     story.append(Paragraph("5. Alertas — Clientes em Risco", s_secao))
@@ -296,7 +297,7 @@ def gerar(ficheiro_fonte=None):
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
             *extra,
         ]))
-        story.append(t_perd)
+        story.append(KeepTogether(t_perd))
 
     # ── Clientes novos ──
     story.append(Spacer(1, 0.5*cm))
@@ -328,7 +329,7 @@ def gerar(ficheiro_fonte=None):
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
             *extra,
         ]))
-        story.append(t_nov)
+        story.append(KeepTogether(t_nov))
 
     # ── Análise por vendedor ──
     story.append(Paragraph("7. Análise por Vendedor", s_secao))
@@ -380,7 +381,7 @@ def gerar(ficheiro_fonte=None):
         if r["perdidos"] > r["novos"]:
             extra_vc.append(("TEXTCOLOR", (4, i), (4, i), VERMELHO))
     t_vc.setStyle(TableStyle(extra_vc))
-    story.append(t_vc)
+    story.append(KeepTogether(t_vc))
     story.append(Spacer(1, 0.2*cm))
     story.append(Paragraph(
         "Retenção: % de clientes de 2025 que voltaram a comprar em 2026 "
@@ -404,7 +405,7 @@ def gerar(ficheiro_fonte=None):
     for i, r in enumerate(vend_rows, start=1):
         extra_vv.append(("TEXTCOLOR", (4, i), (4, i), VERDE if r["var"] >= 0 else VERMELHO))
     t_vv.setStyle(TableStyle(extra_vv))
-    story.append(t_vv)
+    story.append(KeepTogether(t_vv))
     story.append(Spacer(1, 0.15*cm))
     story.append(Paragraph(
         "* Projecção 2026 = volume dos primeiros 6 meses × 2.", s_nota
