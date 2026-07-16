@@ -110,14 +110,13 @@ def gerar(ficheiro_fonte=None):
                       fontName="Helvetica", alignment=TA_CENTER, spaceAfter=12)
     s_secao  = estilo("secao", fontSize=12, textColor=BRANCO,
                       fontName="Helvetica-Bold", alignment=TA_LEFT,
-                      backColor=AZUL_ESCURO, leftIndent=6, spaceAfter=8, spaceBefore=14,
-                      keepWithNext=1)
+                      backColor=AZUL_ESCURO, leftIndent=6, spaceAfter=8, spaceBefore=14)
     s_nota   = estilo("nota", fontSize=8, textColor=colors.grey,
                       fontName="Helvetica-Oblique", alignment=TA_LEFT)
     s_alerta = estilo("alerta", fontSize=9, textColor=VERMELHO,
                       fontName="Helvetica-Bold")
     s_corpo  = estilo("corpo", fontSize=9, fontName="Helvetica",
-                      spaceAfter=4, leading=13, keepWithNext=1)
+                      spaceAfter=4, leading=13)
 
     s_cell      = ParagraphStyle("cell",      fontName="Helvetica",      fontSize=8, leading=10)
     s_cell_bold = ParagraphStyle("cell_bold", fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=BRANCO)
@@ -200,15 +199,13 @@ def gerar(ficheiro_fonte=None):
     story.append(Spacer(1, 0.4*cm))
 
     # ── Evolução anual ──
-    story.append(Paragraph("1. Evolução Anual", s_secao))
     cor_var = VERMELHO if var < 0 else VERDE
-    story.append(Paragraph(
+    evo_intro = Paragraph(
         f"Em 2025 foram vendidas <b>{ano25:,}</b> caixas. Nos primeiros 6 meses de 2026 foram vendidas "
         f"<b>{ano26:,}</b> caixas, o que projectado para o ano completo representa <b>{proj26:,}</b> caixas — "
         f"uma variação estimada de <font color='{'red' if var<0 else 'green'}'><b>{var:+.1f}%</b></font> face a 2025.".replace(",","."),
         s_corpo
-    ))
-
+    )
     evo_data = [["Ano", "Caixas (real)", "Kg (real)", "Projecção anual (cx)", "Variação"]]
     evo_data.append(["2025", f"{ano25:,}".replace(",","."), f"{ano25*6:,}".replace(",","."), "—", "—"])
     evo_data.append(["2026", f"{ano26:,}".replace(",","."), f"{ano26*6:,}".replace(",","."),
@@ -228,41 +225,49 @@ def gerar(ficheiro_fonte=None):
         ("TEXTCOLOR",  (4,2), (4,2), VERMELHO if var < 0 else VERDE),
         ("FONTNAME",   (4,2), (4,2), "Helvetica-Bold"),
     ]))
-    story.append(KeepTogether(t_evo))
-    story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph("* Projecção 2026 calculada com base nos primeiros 6 meses (×2).", s_nota))
+    story.append(KeepTogether([
+        Paragraph("1. Evolução Anual", s_secao),
+        evo_intro,
+        t_evo,
+        Spacer(1, 0.3*cm),
+        Paragraph("* Projecção 2026 calculada com base nos primeiros 6 meses (×2).", s_nota),
+    ]))
 
     # ── Por família ──
-    story.append(Paragraph("2. Distribuição por Família", s_secao))
     pf = rel.groupby("Familia")["Quantidade"].sum().sort_values(ascending=False)
     fam_data = [["Família", "Caixas", "Kg", "% Total"]]
     for f, q in pf.items():
         fam_data.append([f, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."), f"{q/total_cx*100:.1f}%"])
-    story.append(KeepTogether(tabela(fam_data, [7*cm, 3*cm, 3*cm, 3*cm])))
+    story.append(KeepTogether([
+        Paragraph("2. Distribuição por Família", s_secao),
+        tabela(fam_data, [7*cm, 3*cm, 3*cm, 3*cm]),
+    ]))
 
     # ── Por vendedor ──
-    story.append(Paragraph("3. Desempenho por Vendedor", s_secao))
     pv = rel.groupby("Vendedor")["Quantidade"].sum().sort_values(ascending=False)
     vend_data = [["Vendedor", "Caixas", "Kg", "% Total", "Nº Clientes"]]
     for v, q in pv.items():
         nc = rel[rel["Vendedor"]==v]["N_ Clie_"].nunique()
         vend_data.append([v, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
                           f"{q/total_cx*100:.1f}%", str(nc)])
-    story.append(KeepTogether(tabela(vend_data, [5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])))
+    story.append(KeepTogether([
+        Paragraph("3. Desempenho por Vendedor", s_secao),
+        tabela(vend_data, [5.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm]),
+    ]))
 
     # ── Top 15 clientes ──
-    story.append(Paragraph("4. Top 15 Clientes — Período Total", s_secao))
     pc = rel.groupby(["N_ Clie_","Cliente","Vendedor"])["Quantidade"].sum().sort_values(ascending=False).head(15)
     top_data = [["#", "Cliente", "Vendedor", "Caixas", "Kg", "% Total"]]
     for i, ((cod,nome,vend), q) in enumerate(pc.items(), 1):
         top_data.append([str(i), nome, vend.split("/")[-1] if "/" in vend else vend,
                          f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
                          f"{q/total_cx*100:.1f}%"])
-    story.append(KeepTogether(tabela(top_data, [0.8*cm, 6.5*cm, 3*cm, 2*cm, 2*cm, 1.7*cm])))
+    story.append(KeepTogether([
+        Paragraph("4. Top 15 Clientes — Período Total", s_secao),
+        tabela(top_data, [0.8*cm, 6.5*cm, 3*cm, 2*cm, 2*cm, 1.7*cm]),
+    ]))
 
     # ── Alertas ──
-    story.append(Paragraph("5. Alertas — Clientes em Risco", s_secao))
-
     clientes_25 = set(rel[rel["Ano"]==2025]["N_ Clie_"].unique())
     clientes_26 = set(rel[rel["Ano"]==2026]["N_ Clie_"].unique())
     perdidos = clientes_25 - clientes_26
@@ -275,12 +280,14 @@ def gerar(ficheiro_fonte=None):
     # filtrar só os com volume relevante (>= 5 cx)
     perdidos_rel = perdidos_df[perdidos_df["Quantidade"] >= 5]
 
-    story.append(Paragraph(
-        f"<b>{len(perdidos)}</b> clientes compraram em 2025 mas <b>não registam qualquer compra em 2026</b>. "
-        f"Os {len(perdidos_rel)} com volume igual ou superior a 5 caixas em 2025 são:",
-        s_corpo
-    ))
-
+    bloco5 = [
+        Paragraph("5. Alertas — Clientes em Risco", s_secao),
+        Paragraph(
+            f"<b>{len(perdidos)}</b> clientes compraram em 2025 mas <b>não registam qualquer compra em 2026</b>. "
+            f"Os {len(perdidos_rel)} com volume igual ou superior a 5 caixas em 2025 são:",
+            s_corpo
+        ),
+    ]
     if not perdidos_rel.empty:
         perd_data = [["Vendedor", "Cliente", "Caixas 2025"]]
         for _, row in perdidos_rel.iterrows():
@@ -297,7 +304,8 @@ def gerar(ficheiro_fonte=None):
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
             *extra,
         ]))
-        story.append(KeepTogether(t_perd))
+        bloco5.append(t_perd)
+    story.append(KeepTogether(bloco5))
 
     # ── Clientes novos ──
     story.append(Spacer(1, 0.5*cm))
@@ -308,12 +316,14 @@ def gerar(ficheiro_fonte=None):
         .sort_values(ascending=False)
         .reset_index()
     )
-    story.append(Paragraph("6. Clientes Novos em 2026", s_secao))
-    story.append(Paragraph(
-        f"<b>{len(novos)}</b> clientes iniciaram compras nestas famílias em 2026 (sem historial em 2025), "
-        f"totalizando <b>{novos_df['Quantidade'].sum()}</b> caixas.",
-        s_corpo
-    ))
+    bloco6 = [
+        Paragraph("6. Clientes Novos em 2026", s_secao),
+        Paragraph(
+            f"<b>{len(novos)}</b> clientes iniciaram compras nestas famílias em 2026 (sem historial em 2025), "
+            f"totalizando <b>{novos_df['Quantidade'].sum()}</b> caixas.",
+            s_corpo
+        ),
+    ]
     if not novos_df.empty:
         nov_data = [["Vendedor", "Cliente", "Caixas 2026"]]
         for _, row in novos_df.iterrows():
@@ -329,15 +339,16 @@ def gerar(ficheiro_fonte=None):
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
             *extra,
         ]))
-        story.append(KeepTogether(t_nov))
+        bloco6.append(t_nov)
+    story.append(KeepTogether(bloco6))
 
     # ── Análise por vendedor ──
-    story.append(Paragraph("7. Análise por Vendedor", s_secao))
-    story.append(Paragraph(
+    sec7_head = Paragraph("7. Análise por Vendedor", s_secao)
+    sec7_intro = Paragraph(
         "Evolução da carteira de cada vendedor entre 2025 e 2026 (Janeiro–Junho): clientes mantidos, "
         "perdidos e captados, taxa de retenção e projecção de volume para o ano completo de 2026.",
         s_corpo
-    ))
+    )
 
     # Cálculos por vendedor (excluindo estruturas não comerciais)
     excluir_vend = ["Vendas Internas", "14/Armazém"]
@@ -381,13 +392,15 @@ def gerar(ficheiro_fonte=None):
         if r["perdidos"] > r["novos"]:
             extra_vc.append(("TEXTCOLOR", (4, i), (4, i), VERMELHO))
     t_vc.setStyle(TableStyle(extra_vc))
-    story.append(KeepTogether(t_vc))
-    story.append(Spacer(1, 0.2*cm))
-    story.append(Paragraph(
-        "Retenção: % de clientes de 2025 que voltaram a comprar em 2026 "
-        "(<font color='green'>verde ≥ 90%</font>, <font color='red'>vermelho &lt; 80%</font>).",
-        s_nota
-    ))
+    story.append(KeepTogether([
+        sec7_head, sec7_intro, t_vc,
+        Spacer(1, 0.2*cm),
+        Paragraph(
+            "Retenção: % de clientes de 2025 que voltaram a comprar em 2026 "
+            "(<font color='green'>verde ≥ 90%</font>, <font color='red'>vermelho &lt; 80%</font>).",
+            s_nota
+        ),
+    ]))
     story.append(Spacer(1, 0.35*cm))
 
     # Tabela: volume e projecção por vendedor
@@ -405,11 +418,11 @@ def gerar(ficheiro_fonte=None):
     for i, r in enumerate(vend_rows, start=1):
         extra_vv.append(("TEXTCOLOR", (4, i), (4, i), VERDE if r["var"] >= 0 else VERMELHO))
     t_vv.setStyle(TableStyle(extra_vv))
-    story.append(KeepTogether(t_vv))
-    story.append(Spacer(1, 0.15*cm))
-    story.append(Paragraph(
-        "* Projecção 2026 = volume dos primeiros 6 meses × 2.", s_nota
-    ))
+    story.append(KeepTogether([
+        t_vv,
+        Spacer(1, 0.15*cm),
+        Paragraph("* Projecção 2026 = volume dos primeiros 6 meses × 2.", s_nota),
+    ]))
     story.append(Spacer(1, 0.35*cm))
 
     # Comentário automático: melhores e piores
@@ -435,8 +448,6 @@ def gerar(ficheiro_fonte=None):
         story.append(Paragraph(coment, s_corpo))
 
     # ── Avaliação de performance ──
-    story.append(Paragraph("8. Avaliação de Performance", s_secao))
-
     # Cálculos
     kg_perdidos    = int(perdidos_df["Quantidade"].sum() * KG_POR_CAIXA)
     cx_perdidos    = int(perdidos_df["Quantidade"].sum())
@@ -495,8 +506,13 @@ def gerar(ficheiro_fonte=None):
                              spaceAfter=8, leftIndent=4, rightIndent=4)
     s_aval_primeiro = ParagraphStyle("aval0", parent=s_aval, spaceBefore=4)
 
-    for i, p in enumerate(paragrafos):
-        story.append(Paragraph(p.replace(",","."), s_aval_primeiro if i == 0 else s_aval))
+    # Manter o título com o primeiro parágrafo
+    story.append(KeepTogether([
+        Paragraph("8. Avaliação de Performance", s_secao),
+        Paragraph(paragrafos[0].replace(",","."), s_aval_primeiro),
+    ]))
+    for p in paragrafos[1:]:
+        story.append(Paragraph(p.replace(",","."), s_aval))
 
 
     story.append(Spacer(1, 0.8*cm))
