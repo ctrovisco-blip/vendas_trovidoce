@@ -163,7 +163,20 @@ def gerar(ficheiro_fonte=None):
     total_un   = rel["Quantidade"].sum()
     ano25      = rel[rel["Ano"] == 2025]["Quantidade"].sum()
     ano26      = rel[rel["Ano"] == 2026]["Quantidade"].sum()
-    proj26     = ano26 * 2
+
+    # Projecção 2026: anualização pelo run-rate (dias efectivamente decorridos até à última venda)
+    dados26 = df_f[df_f["Ano"] == 2026]
+    if len(dados26):
+        ultima_dt_26 = dados26["Dt_ Emissao"].max()
+        dias_decorridos_26 = (ultima_dt_26 - pd.Timestamp(year=2026, month=1, day=1)).days + 1
+        fator_anual = 365.0 / dias_decorridos_26 if dias_decorridos_26 > 0 else 0
+        ultima_26_txt = ultima_dt_26.strftime("%d/%m/%Y")
+    else:
+        dias_decorridos_26 = 0
+        fator_anual = 0
+        ultima_26_txt = "—"
+    meses_decorridos_26 = dias_decorridos_26 / 30.44
+    proj26     = int(round(ano26 * fator_anual))
     var        = (proj26 - ano25) / ano25 * 100 if ano25 > 0 else 0
     var_abs    = proj26 - ano25
     data_min   = df_f["Dt_ Emissao"].min().strftime("%d/%m/%Y")
@@ -230,8 +243,8 @@ def gerar(ficheiro_fonte=None):
     story.append(Paragraph("1. Evolução Anual", s_secao))
     var_cor = "red" if var < 0 else "green"
     story.append(Paragraph(
-        f"Em 2025 foram vendidas <b>{ano25:,}</b> unidades. Nos primeiros 6 meses de 2026 foram vendidas "
-        f"<b>{ano26:,}</b> unidades, o que projectado para o ano completo representa <b>{proj26:,}</b> unidades — "
+        f"Em 2025 foram vendidas <b>{ano25:,}</b> unidades. Até {ultima_26_txt} (≈ <b>{meses_decorridos_26:.1f}</b> meses) foram "
+        f"vendidas <b>{ano26:,}</b> unidades em 2026, o que anualizado (run-rate) representa <b>{proj26:,}</b> unidades — "
         f"uma variação estimada de <font color='{var_cor}'><b>{var:+.1f}%</b></font> face a 2025.".replace(",", "."),
         s_corpo
     ))
@@ -254,7 +267,9 @@ def gerar(ficheiro_fonte=None):
     ]))
     story.append(t_evo)
     story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph("* Projecção 2026 calculada com base nos primeiros 6 meses (×2).", s_nota))
+    story.append(Paragraph(
+        f"* Projecção 2026 = volume até {ultima_26_txt} anualizado pelo run-rate "
+        f"(× 365 / {dias_decorridos_26} dias decorridos).", s_nota))
 
     # ── 2. Top famílias ──
     story.append(Paragraph("2. Top 20 Famílias — Período Total", s_secao))
@@ -325,7 +340,8 @@ def gerar(ficheiro_fonte=None):
     var_cor2    = "green" if var >= 0 else "red"
 
     paragrafos = [
-        f"<b>Tendência geral:</b> Com base nos primeiros 6 meses de 2026, a projecção anual aponta para "
+        f"<b>Tendência geral:</b> Com base no volume decorrido de 2026 (até {ultima_26_txt}, ≈ {meses_decorridos_26:.1f} meses), "
+        f"a projecção anualizada aponta para "
         f"<b>{proj26:,} unidades</b>, face às <b>{ano25:,} unidades</b> registadas em 2025. "
         f"Isso representa uma variação estimada de "
         f"<font color='{var_cor2}'><b>{var:+.1f}%</b></font> "
@@ -342,8 +358,9 @@ def gerar(ficheiro_fonte=None):
         f"O saldo líquido é <font color='{saldo_cor}'><b>{saldo_un:+,} unidades</b></font> — "
         f"{'os novos clientes <b>não compensam</b> o volume perdido' if saldo_un < 0 else 'os novos clientes <b>superam</b> o volume perdido'}.".replace(",", "."),
 
-        f"<b>Nota:</b> Os dados de 2026 correspondem apenas a 6 meses (Janeiro–Junho). "
-        f"Alguns dos {len(perdidos)} clientes classificados como \"perdidos\" podem retomar "
+        f"<b>Nota:</b> Os dados de 2026 vão até {ultima_26_txt} (ano em curso). "
+        f"A projecção assume que o ritmo de vendas decorrido se mantém até ao final do ano; "
+        f"alguns dos {len(perdidos)} clientes classificados como \"perdidos\" podem retomar "
         f"compras no segundo semestre, pelo que esta análise deve ser revisitada no final do ano.",
     ]
     for p in paragrafos:
