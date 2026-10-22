@@ -485,7 +485,54 @@ def gerar(ficheiro_fonte=None):
         story.append(Paragraph(coment, s_corpo))
 
     # ── Avaliação de performance ──
-    # Cálculos
+    # Formatação de números com separador de milhares "." (sem mexer nas vírgulas de texto)
+    def fmt(n):
+        return f"{int(round(n)):,}".replace(",", ".")
+    def fmts(n):   # com sinal
+        return f"{int(round(n)):+,}".replace(",", ".")
+    def cor(v):
+        return "green" if v >= 0 else "red"
+
+    # Grupos de famílias para o desdobramento
+    GRUPO_CAFE = [
+        "Buondi Grão Kg", "Sical Grão Kg", "Christina Grão Kg",
+        "Buondi Decafe Doses", "Sical Decafe Doses", "Christina Decafe Doses",
+        "Buondi Decafe Grão Kg", "Sical Decafe Grão Kg", "Christina Decafe Grão Kg",
+    ]
+
+    def metricas_grupo(familias):
+        sub = rel[rel["Familia"].isin(familias)]
+        a25  = sub[sub["Ano"] == 2025]["Quantidade"].sum()
+        a25k = sub[sub["Ano"] == 2025]["Kg"].sum()
+        a26  = sub[sub["Ano"] == 2026]["Quantidade"].sum()
+        a26k = sub[sub["Ano"] == 2026]["Kg"].sum()
+        proj  = int(round(a26 * fator_anual))
+        projk = int(round(a26k * fator_anual))
+        varg  = ((proj - a25) / a25 * 100) if a25 else 0
+        c25 = set(sub[sub["Ano"] == 2025]["N_ Clie_"])
+        c26 = set(sub[sub["Ano"] == 2026]["N_ Clie_"])
+        perd = c25 - c26
+        nov  = c26 - c25
+        reten = (len(c25 & c26) / len(c25) * 100) if c25 else 0
+        pdf = sub[sub["N_ Clie_"].isin(perd) & (sub["Ano"] == 2025)]
+        ndf = sub[sub["N_ Clie_"].isin(nov) & (sub["Ano"] == 2026)]
+        cx_perd = int(pdf["Quantidade"].sum()); kg_perd = int(round(pdf["Kg"].sum()))
+        cx_nov  = int(ndf["Quantidade"].sum()); kg_nov  = int(round(ndf["Kg"].sum()))
+        return {
+            "a25": int(a25), "a25k": int(round(a25k)), "proj": proj, "projk": projk, "var": varg,
+            "c25": len(c25), "mant": len(c25 & c26), "perd": len(perd), "nov": len(nov),
+            "reten": reten, "cx_perd": cx_perd, "kg_perd": kg_perd,
+            "cx_nov": cx_nov, "kg_nov": kg_nov,
+            "saldo_cx": cx_nov - cx_perd, "saldo_kg": kg_nov - kg_perd,
+        }
+
+    grupos = [
+        ("Café (grão, decaf. grão e decaf. doses)", metricas_grupo(GRUPO_CAFE)),
+        ("Buondi Office", metricas_grupo(["Buondi Office"])),
+        ("Café 200g",    metricas_grupo(["Café 200g"])),
+    ]
+
+    # Totais gerais (todas as famílias)
     kg_perdidos    = int(round(perdidos_df["Kg"].sum())) if not perdidos_df.empty else 0
     cx_perdidos    = int(perdidos_df["Quantidade"].sum()) if not perdidos_df.empty else 0
     kg_novos       = int(round(novos_df["Kg"].sum())) if not novos_df.empty else 0
@@ -493,66 +540,69 @@ def gerar(ficheiro_fonte=None):
     saldo_kg       = kg_novos - kg_perdidos
     saldo_cx       = cx_novos - cx_perdidos
     taxa_retencao  = (len(clientes_26) / len(clientes_25) * 100) if clientes_25 else 0
-    taxa_churn     = (len(perdidos) / len(clientes_25) * 100) if clientes_25 else 0
 
-    # Variação geral 2025 vs 2026 anualizado
-    var_abs = proj26 - ano25
-    var_abs_kg = proj26_kg - int(round(ano25_kg))
+    s_aval = ParagraphStyle("aval", fontName="Helvetica", fontSize=9, leading=14,
+                             spaceAfter=8, leftIndent=4, rightIndent=4)
+    s_aval_primeiro = ParagraphStyle("aval0", parent=s_aval, spaceBefore=4)
 
-    # Texto de avaliação
-    saldo_cor   = "green" if saldo_kg >= 0 else "red"
-    saldo_sinal = "positivo" if saldo_kg >= 0 else "negativo"
-    var_cor     = "green" if var >= 0 else "red"
-
-    paragrafos = []
-
-    # § 1 — Tendência geral
-    paragrafos.append(
-        f"<b>Tendência geral:</b> Com base no volume decorrido de 2026 (até {ultima_26_txt}, ≈ {meses_decorridos_26:.1f} meses), "
-        f"a projecção anualizada aponta para "
-        f"<b>{proj26:,} caixas ({proj26_kg:,} kg)</b>, face às <b>{ano25:,} caixas ({int(round(ano25_kg)):,} kg)</b> "
-        f"registadas em 2025. Isso representa uma variação estimada de "
-        f"<font color='{var_cor}'><b>{var:+.1f}%</b></font> "
-        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} caixas / {abs(int(var_abs_kg)):,} kg).".replace(",",".")
+    # § Tendência geral (por grupo)
+    lin_tend = []
+    for nome, m in grupos:
+        lin_tend.append(
+            f"• <b>{nome}:</b> projecção <b>{fmt(m['proj'])} cx ({fmt(m['projk'])} kg)</b> "
+            f"vs {fmt(m['a25'])} cx ({fmt(m['a25k'])} kg) em 2025 → "
+            f"<font color='{cor(m['var'])}'><b>{m['var']:+.1f}%</b></font>"
+        )
+    para_tend = (
+        f"<b>Tendência geral</b> — projecção anualizada para 2026 "
+        f"(volume até {ultima_26_txt}, ≈ {meses_decorridos_26:.1f} meses):<br/>"
+        + "<br/>".join(lin_tend)
     )
 
-    # § 2 — Retenção de clientes
-    paragrafos.append(
-        f"<b>Retenção de clientes:</b> Dos <b>{len(clientes_25)}</b> clientes activos em 2025, "
-        f"<b>{len(clientes_25) - len(perdidos)}</b> mantiveram compras em 2026 "
-        f"(taxa de retenção de <b>{taxa_retencao:.1f}%</b>). "
-        f"Os <b>{len(perdidos)}</b> clientes que não regressaram em 2026 representavam "
-        f"<b>{cx_perdidos} caixas / {kg_perdidos:,} kg</b> em 2025.".replace(",",".")
+    # § Retenção de clientes (por grupo)
+    lin_ret = []
+    for nome, m in grupos:
+        lin_ret.append(
+            f"• <b>{nome}:</b> {m['c25']} clientes em 2025; {m['mant']} mantidos "
+            f"(retenção <b>{m['reten']:.0f}%</b>); {m['perd']} perdidos "
+            f"= {fmt(m['cx_perd'])} cx / {fmt(m['kg_perd'])} kg"
+        )
+    para_ret = "<b>Retenção de clientes</b> (por grupo, clientes que compraram cada grupo):<br/>" + "<br/>".join(lin_ret)
+
+    # § Captação vs. perda (por grupo)
+    lin_capt = []
+    for nome, m in grupos:
+        lin_capt.append(
+            f"• <b>{nome}:</b> {m['nov']} novos = {fmt(m['cx_nov'])} cx / {fmt(m['kg_nov'])} kg; "
+            f"saldo líquido <font color='{cor(m['saldo_kg'])}'><b>{fmts(m['saldo_cx'])} cx / {fmts(m['saldo_kg'])} kg</b></font>"
+        )
+    para_capt = "<b>Captação vs. perda</b> (novos menos perdidos, por grupo):<br/>" + "<br/>".join(lin_capt)
+
+    # § Resumo geral (todas as famílias)
+    para_geral = (
+        f"<b>Resumo geral (todas as famílias):</b> projecção de "
+        f"<b>{fmt(proj26)} cx ({fmt(proj26_kg)} kg)</b> vs {fmt(ano25)} cx ({fmt(ano25_kg)} kg) em 2025 "
+        f"(<font color='{cor(var)}'><b>{var:+.1f}%</b></font>); taxa de retenção de <b>{taxa_retencao:.1f}%</b> "
+        f"({len(perdidos)} perdidos / {len(novos)} novos); saldo líquido "
+        f"<font color='{cor(saldo_kg)}'><b>{fmts(saldo_cx)} cx / {fmts(saldo_kg)} kg</b></font> — "
+        f"{'os novos clientes <b>não compensam</b> o volume perdido' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido'}."
     )
 
-    # § 3 — Captação vs. perda
-    paragrafos.append(
-        f"<b>Captação vs. perda:</b> Os <b>{len(novos)}</b> clientes novos captados em 2026 "
-        f"trouxeram <b>{cx_novos} caixas / {kg_novos:,} kg</b>. "
-        f"O saldo líquido entre captação e perda é "
-        f"<font color='{saldo_cor}'><b>{saldo_cx:+d} caixas / {saldo_kg:+,} kg</b></font> — "
-        f"{'os novos clientes <b>não compensam</b> o volume perdido pelos que saíram' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido pelos que saíram'}.".replace(",",".")
-    )
-
-    # § 4 — Nota sobre 2026 (ano em curso)
-    paragrafos.append(
+    # § Nota
+    para_nota = (
         f"<b>Nota:</b> Os dados de 2026 vão até {ultima_26_txt} (ano em curso). "
         f"A projecção assume que o ritmo de vendas decorrido se mantém até ao final do ano; "
         f"é possível que alguns dos {len(perdidos)} clientes classificados como \"perdidos\" retomem "
         f"compras no período restante, pelo que esta análise deve ser revisitada no final do ano."
     )
 
-    s_aval = ParagraphStyle("aval", fontName="Helvetica", fontSize=9, leading=14,
-                             spaceAfter=8, leftIndent=4, rightIndent=4)
-    s_aval_primeiro = ParagraphStyle("aval0", parent=s_aval, spaceBefore=4)
-
-    # Manter o título com o primeiro parágrafo
+    # Manter o título com o primeiro bloco
     story.append(KeepTogether([
         Paragraph("8. Avaliação de Performance", s_secao),
-        Paragraph(paragrafos[0].replace(",","."), s_aval_primeiro),
+        Paragraph(para_tend, s_aval_primeiro),
     ]))
-    for p in paragrafos[1:]:
-        story.append(Paragraph(p.replace(",","."), s_aval))
+    for p in [para_ret, para_capt, para_geral, para_nota]:
+        story.append(Paragraph(p, s_aval))
 
 
     story.append(Spacer(1, 0.8*cm))
