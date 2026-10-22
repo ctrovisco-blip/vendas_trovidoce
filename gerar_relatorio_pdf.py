@@ -241,8 +241,9 @@ def gerar(ficheiro_fonte=None):
     )
     evo_data = [["Ano", "Caixas (real)", "Kg (real)", "Projecção anual (cx)", "Variação"]]
     evo_data.append(["2025", f"{ano25:,}".replace(",","."), f"{int(round(ano25_kg)):,}".replace(",","."), "—", "—"])
+    _var_hex = "#C00000" if var < 0 else "#375623"
     evo_data.append(["2026", f"{ano26:,}".replace(",","."), f"{int(round(ano26_kg)):,}".replace(",","."),
-                     f"{proj26:,}".replace(",","."), f"{var:+.1f}%"])
+                     f"{proj26:,}".replace(",","."), f"<font color='{_var_hex}'><b>{var:+.1f}%</b></font>"])
     t_evo = tabela(evo_data, [2*cm, 3*cm, 3*cm, 4*cm, 3*cm])
     t_evo.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), AZUL_ESCURO),
@@ -255,8 +256,6 @@ def gerar(ficheiro_fonte=None):
         ("ROWHEIGHT",  (0,0), (-1,-1), 18),
         ("GRID",       (0,0), (-1,-1), 0.3, colors.HexColor("#CCCCCC")),
         ("BACKGROUND", (0,2), (-1,2), AZUL_MUITO_CLARO),
-        ("TEXTCOLOR",  (4,2), (4,2), VERMELHO if var < 0 else VERDE),
-        ("FONTNAME",   (4,2), (4,2), "Helvetica-Bold"),
     ]))
     story.append(KeepTogether([
         Paragraph("1. Evolução Anual", s_secao),
@@ -414,24 +413,25 @@ def gerar(ficheiro_fonte=None):
         })
 
     # Tabela: clientes por vendedor
+    HEX_VERDE = "#375623"
+    HEX_VERM  = "#C00000"
     vend_cli = [["Vendedor", "Clientes<br/>2025", "Clientes<br/>2026", "Mantidos", "Perdidos", "Novos", "Retenção"]]
     for r in vend_rows:
+        # cor embutida no texto (TEXTCOLOR não afecta Paragraphs)
+        ret_txt = f"{r['retencao']:.0f}%"
+        if r["retencao"] >= 90:
+            ret_txt = f"<font color='{HEX_VERDE}'>{ret_txt}</font>"
+        elif r["retencao"] < 80:
+            ret_txt = f"<font color='{HEX_VERM}'>{ret_txt}</font>"
+        perd_txt = str(r["perdidos"])
+        if r["perdidos"] > r["novos"]:
+            perd_txt = f"<font color='{HEX_VERM}'>{perd_txt}</font>"
         vend_cli.append([
             r["vendedor"], str(r["c25"]), str(r["c26"]),
-            str(r["mantidos"]), str(r["perdidos"]), str(r["novos"]),
-            f"{r['retencao']:.0f}%",
+            str(r["mantidos"]), perd_txt, str(r["novos"]),
+            ret_txt,
         ])
     t_vc = tabela(vend_cli, [4.3*cm, 1.9*cm, 1.9*cm, 2*cm, 2*cm, 1.6*cm, 2*cm])
-    # colorir coluna retenção e perdidos
-    extra_vc = []
-    for i, r in enumerate(vend_rows, start=1):
-        if r["retencao"] >= 90:
-            extra_vc.append(("TEXTCOLOR", (6, i), (6, i), VERDE))
-        elif r["retencao"] < 80:
-            extra_vc.append(("TEXTCOLOR", (6, i), (6, i), VERMELHO))
-        if r["perdidos"] > r["novos"]:
-            extra_vc.append(("TEXTCOLOR", (4, i), (4, i), VERMELHO))
-    t_vc.setStyle(TableStyle(extra_vc))
     story.append(KeepTogether([
         sec7_head, sec7_intro, t_vc,
         Spacer(1, 0.2*cm),
@@ -446,18 +446,15 @@ def gerar(ficheiro_fonte=None):
     # Tabela: volume e projecção por vendedor
     vend_vol = [["Vendedor", "Qtd 2025<br/>(cx)", "Qtd 2026<br/>decorrido (cx)", "Projecção<br/>2026 (cx)", "Variação"]]
     for r in vend_rows:
+        var_txt = f"<font color='{HEX_VERDE if r['var'] >= 0 else HEX_VERM}'>{r['var']:+.1f}%</font>"
         vend_vol.append([
             r["vendedor"],
             f"{r['q25']:,}".replace(",","."),
             f"{r['q26']:,}".replace(",","."),
             f"{r['proj']:,}".replace(",","."),
-            f"{r['var']:+.1f}%",
+            var_txt,
         ])
     t_vv = tabela(vend_vol, [4.3*cm, 2.8*cm, 2.8*cm, 2.8*cm, 2.8*cm])
-    extra_vv = []
-    for i, r in enumerate(vend_rows, start=1):
-        extra_vv.append(("TEXTCOLOR", (4, i), (4, i), VERDE if r["var"] >= 0 else VERMELHO))
-    t_vv.setStyle(TableStyle(extra_vv))
     story.append(KeepTogether([
         t_vv,
         Spacer(1, 0.15*cm),
