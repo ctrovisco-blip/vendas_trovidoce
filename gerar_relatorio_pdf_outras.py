@@ -26,10 +26,25 @@ PASTA_FONTE   = r"I:\O meu disco\Trovidoce\Mapas Mensais"
 PASTA_DESTINO = r"I:\O meu disco\Claude"
 NOME_SAIDA    = "Analise_Outras_Familias.pdf"
 
+# Famílias a EXCLUIR (match exacto pela coluna "Familia" / nível mais detalhado).
+# Inclui as famílias que passaram para o relatório de café (Analise_Grao_Cafe)
+# e as famílias de consumíveis/serviços que não devem constar da análise.
 EXCLUIR = [
-    "Buondi Grão Kg", "Buondi Decafe Grão Kg",
-    "Sical Grão Kg",  "Sical Decafe Grão Kg",
-    "Christina Grão Kg", "Christina Decafe Grão Kg",
+    # Passaram para o relatório de café em grão
+    "Buondi Grão Kg", "Sical Grão Kg", "Christina Grão Kg",
+    "Buondi Decafe Grão Kg", "Sical Decafe Grão Kg", "Christina Decafe Grão Kg",
+    "Buondi Decafe Doses", "Sical Decafe Doses", "Christina Decafe Doses",
+    "Buondi Office", "Café 200g",
+    # Consumíveis / descartáveis
+    "Buondi Paletines", "Sical Paletines", "Christina Paletines", "Vending Paletines",
+    "Buondi Copos", "Sical Copos", "Christina Copos", "Vending Copos", "Copos Papel",
+    "Buondi Açucar", "Sical Açucar", "Christina Açucar",
+    "Buondi Chávenas", "Sical Chávenas", "Christina Chávenas",
+    "Pires Café", "Tampas Descartáveis",
+    "Vas. ASE", "Vas. Castello", "Vas. CO2", "Vas. Lipton",
+    "Vas. Pepsi", "Vas. Sagres", "Vas. Super Bock",
+    # Serviços / acordos / outros não-produto
+    "Acordos", "Rappel", "SDR", "Serviços e Despesas",
 ]
 DIAS_MES = 30.44
 
@@ -61,9 +76,9 @@ def encontrar_ficheiro_fonte():
 def preparar_dados(ficheiro_fonte):
     df = pd.read_excel(ficheiro_fonte, sheet_name="COLAR AQUI", header=1)
 
-    padrao_excluir = "|".join(EXCLUIR)
-    df_f = df[~df["Familia Completa"].str.contains(padrao_excluir, na=False)].copy()
-    df_f = df_f[df_f["Familia Completa"].notna()]
+    # Excluir pela família (nível mais detalhado), correspondência exacta
+    df_f = df[df["Familia Completa"].notna()].copy()
+    df_f = df_f[~df_f["Familia"].isin(EXCLUIR)]
 
     df_f["Dt_ Emissao"] = pd.to_datetime(df_f["Dt_ Emissao"])
     df_f["Ano"] = df_f["Dt_ Emissao"].dt.year

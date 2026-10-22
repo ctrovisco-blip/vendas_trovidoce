@@ -21,8 +21,22 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 PASTA_FONTE   = r"I:\O meu disco\Trovidoce\Mapas Mensais"
 PASTA_DESTINO = r"I:\O meu disco\Claude"
 NOME_SAIDA    = "Analise_Grao_Cafe.pdf"
-FAMILIAS      = ["Buondi Grão Kg", "Christina Grão Kg", "Sical Grão Kg"]
-KG_POR_CAIXA  = 6
+
+# Famílias incluídas e respectivo factor de conversão caixa -> kg
+FATORES_KG = {
+    "Buondi Grão Kg":          6.0,
+    "Christina Grão Kg":       6.0,
+    "Sical Grão Kg":           6.0,
+    "Buondi Decafe Grão Kg":   1.0,
+    "Sical Decafe Grão Kg":    1.0,
+    "Christina Decafe Grão Kg":1.0,
+    "Buondi Decafe Doses":     0.325,
+    "Sical Decafe Doses":      0.325,
+    "Christina Decafe Doses":  0.325,
+    "Buondi Office":           1.0,
+    "Café 200g":               2.4,
+}
+FAMILIAS = list(FATORES_KG)
 
 # Cores
 AZUL_ESCURO  = colors.HexColor("#1F4E79")
@@ -60,6 +74,9 @@ def preparar_dados(ficheiro_fonte):
     df_f["Ano"] = df_f["Dt_ Emissao"].dt.year
     df_f["Mes"] = df_f["Dt_ Emissao"].dt.to_period("M")
 
+    # Conversão caixa -> kg específica de cada família
+    df_f["Kg"] = df_f["Quantidade"] * df_f["Familia"].map(FATORES_KG)
+
     nome_atual = (
         df_f.sort_values("Dt_ Emissao")
         .groupby("N_ Clie_")["Cliente"].last()
@@ -70,7 +87,7 @@ def preparar_dados(ficheiro_fonte):
 
     DIAS_MES = 30.44
     chave = ["N_ Vend_", "Vendedor", "N_ Clie_", "Cliente", "Familia", "Ano"]
-    qtd = df_f.groupby(chave)["Quantidade"].sum().reset_index()
+    qtd = df_f.groupby(chave)[["Quantidade", "Kg"]].sum().reset_index()
     span = df_f.groupby(chave)["Dt_ Emissao"].agg(primeira_compra="min", ultima_compra="max").reset_index()
     span["N_Meses"] = span.apply(
         lambda r: max((r["ultima_compra"] - r["primeira_compra"]).days / DIAS_MES, 1.0),
@@ -152,9 +169,11 @@ def gerar(ficheiro_fonte=None):
 
     story = []
     total_cx = rel["Quantidade"].sum()
-    total_kg = total_cx * KG_POR_CAIXA
+    total_kg = rel["Kg"].sum()
     ano25 = rel[rel["Ano"]==2025]["Quantidade"].sum()
     ano26 = rel[rel["Ano"]==2026]["Quantidade"].sum()
+    ano25_kg = rel[rel["Ano"]==2025]["Kg"].sum()
+    ano26_kg = rel[rel["Ano"]==2026]["Kg"].sum()
 
     # Projecção 2026: anualização pelo run-rate (dias efectivamente decorridos até à última venda)
     dados26 = df_f[df_f["Ano"] == 2026]
@@ -169,6 +188,7 @@ def gerar(ficheiro_fonte=None):
         ultima_26_txt = "—"
     meses_decorridos_26 = dias_decorridos_26 / 30.44
     proj26 = int(round(ano26 * fator_anual))
+    proj26_kg = int(round(ano26_kg * fator_anual))
     var = (proj26 - ano25) / ano25 * 100 if ano25 else 0
     data_min = df_f["Dt_ Emissao"].min().strftime("%d/%m/%Y")
     data_max = df_f["Dt_ Emissao"].max().strftime("%d/%m/%Y")
@@ -176,7 +196,7 @@ def gerar(ficheiro_fonte=None):
     # ── Cabeçalho ──
     story.append(Spacer(1, 0.5*cm))
     story.append(Paragraph("TROVIDOCE", s_titulo))
-    story.append(Paragraph("Análise de Vendas — Café em Grão", s_sub))
+    story.append(Paragraph("Análise de Vendas — Café", s_sub))
     story.append(Paragraph(f"Período: {data_min} a {data_max}  |  Gerado em: {datetime.now():%d/%m/%Y %H:%M}", s_data))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_ESCURO, spaceAfter=12))
 
@@ -185,10 +205,10 @@ def gerar(ficheiro_fonte=None):
         ["Total Caixas", "Total Kg", "Nº Clientes", "Nº Vendedores", "Famílias"],
         [
             f"{total_cx:,}".replace(",","."),
-            f"{total_kg:,}".replace(",","."),
+            f"{int(round(total_kg)):,}".replace(",","."),
             str(rel["N_ Clie_"].nunique()),
             str(rel[rel["Vendedor"].str.contains("Vend|Arm", na=False)==False]["Vendedor"].nunique()),
-            str(len(FAMILIAS))
+            str(rel["Familia"].nunique())
         ]
     ]
     t_kpi = Table(kpi_data, colWidths=[3.2*cm]*5)
@@ -220,8 +240,8 @@ def gerar(ficheiro_fonte=None):
         s_corpo
     )
     evo_data = [["Ano", "Caixas (real)", "Kg (real)", "Projecção anual (cx)", "Variação"]]
-    evo_data.append(["2025", f"{ano25:,}".replace(",","."), f"{ano25*6:,}".replace(",","."), "—", "—"])
-    evo_data.append(["2026", f"{ano26:,}".replace(",","."), f"{ano26*6:,}".replace(",","."),
+    evo_data.append(["2025", f"{ano25:,}".replace(",","."), f"{int(round(ano25_kg)):,}".replace(",","."), "—", "—"])
+    evo_data.append(["2026", f"{ano26:,}".replace(",","."), f"{int(round(ano26_kg)):,}".replace(",","."),
                      f"{proj26:,}".replace(",","."), f"{var:+.1f}%"])
     t_evo = tabela(evo_data, [2*cm, 3*cm, 3*cm, 4*cm, 3*cm])
     t_evo.setStyle(TableStyle([
@@ -250,21 +270,24 @@ def gerar(ficheiro_fonte=None):
     ]))
 
     # ── Por família ──
-    pf = rel.groupby("Familia")["Quantidade"].sum().sort_values(ascending=False)
-    fam_data = [["Família", "Caixas", "Kg", "% Total"]]
-    for f, q in pf.items():
-        fam_data.append([f, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."), f"{q/total_cx*100:.1f}%"])
+    pf = rel.groupby("Familia")[["Quantidade", "Kg"]].sum().sort_values("Quantidade", ascending=False)
+    fam_data = [["Família", "Caixas", "Kg", "% Total (cx)"]]
+    for f, row in pf.iterrows():
+        q = row["Quantidade"]; kg = row["Kg"]
+        fam_data.append([f, f"{int(q):,}".replace(",","."), f"{int(round(kg)):,}".replace(",","."),
+                         f"{q/total_cx*100:.1f}%"])
     story.append(KeepTogether([
         Paragraph("2. Distribuição por Família", s_secao),
         tabela(fam_data, [7*cm, 3*cm, 3*cm, 3*cm]),
     ]))
 
     # ── Por vendedor ──
-    pv = rel.groupby("Vendedor")["Quantidade"].sum().sort_values(ascending=False)
-    vend_data = [["Vendedor", "Caixas", "Kg", "% Total", "Nº Clientes"]]
-    for v, q in pv.items():
+    pv = rel.groupby("Vendedor")[["Quantidade", "Kg"]].sum().sort_values("Quantidade", ascending=False)
+    vend_data = [["Vendedor", "Caixas", "Kg", "% Total (cx)", "Nº Clientes"]]
+    for v, row in pv.iterrows():
+        q = row["Quantidade"]; kg = row["Kg"]
         nc = rel[rel["Vendedor"]==v]["N_ Clie_"].nunique()
-        vend_data.append([v, f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
+        vend_data.append([v, f"{int(q):,}".replace(",","."), f"{int(round(kg)):,}".replace(",","."),
                           f"{q/total_cx*100:.1f}%", str(nc)])
     story.append(KeepTogether([
         Paragraph("3. Desempenho por Vendedor", s_secao),
@@ -272,11 +295,12 @@ def gerar(ficheiro_fonte=None):
     ]))
 
     # ── Top 15 clientes ──
-    pc = rel.groupby(["N_ Clie_","Cliente","Vendedor"])["Quantidade"].sum().sort_values(ascending=False).head(15)
-    top_data = [["#", "Cliente", "Vendedor", "Caixas", "Kg", "% Total"]]
-    for i, ((cod,nome,vend), q) in enumerate(pc.items(), 1):
+    pc = rel.groupby(["N_ Clie_","Cliente","Vendedor"])[["Quantidade", "Kg"]].sum().sort_values("Quantidade", ascending=False).head(15)
+    top_data = [["#", "Cliente", "Vendedor", "Caixas", "Kg", "% Total (cx)"]]
+    for i, ((cod,nome,vend), row) in enumerate(pc.iterrows(), 1):
+        q = row["Quantidade"]; kg = row["Kg"]
         top_data.append([str(i), nome, vend.split("/")[-1] if "/" in vend else vend,
-                         f"{q:,}".replace(",","."), f"{q*6:,}".replace(",","."),
+                         f"{int(q):,}".replace(",","."), f"{int(round(kg)):,}".replace(",","."),
                          f"{q/total_cx*100:.1f}%"])
     story.append(KeepTogether([
         Paragraph("4. Top 15 Clientes — Período Total", s_secao),
@@ -289,8 +313,8 @@ def gerar(ficheiro_fonte=None):
     perdidos = clientes_25 - clientes_26
     perdidos_df = (
         rel[rel["N_ Clie_"].isin(perdidos) & (rel["Ano"]==2025)]
-        .groupby(["Vendedor","N_ Clie_","Cliente"])["Quantidade"].sum()
-        .sort_values(ascending=False)
+        .groupby(["Vendedor","N_ Clie_","Cliente"])[["Quantidade", "Kg"]].sum()
+        .sort_values("Quantidade", ascending=False)
         .reset_index()
     )
     # filtrar só os com volume relevante (>= 5 cx)
@@ -328,8 +352,8 @@ def gerar(ficheiro_fonte=None):
     novos = clientes_26 - clientes_25
     novos_df = (
         rel[rel["N_ Clie_"].isin(novos) & (rel["Ano"]==2026)]
-        .groupby(["Vendedor","N_ Clie_","Cliente"])["Quantidade"].sum()
-        .sort_values(ascending=False)
+        .groupby(["Vendedor","N_ Clie_","Cliente"])[["Quantidade", "Kg"]].sum()
+        .sort_values("Quantidade", ascending=False)
         .reset_index()
     )
     bloco6 = [
@@ -465,10 +489,10 @@ def gerar(ficheiro_fonte=None):
 
     # ── Avaliação de performance ──
     # Cálculos
-    kg_perdidos    = int(perdidos_df["Quantidade"].sum() * KG_POR_CAIXA)
-    cx_perdidos    = int(perdidos_df["Quantidade"].sum())
-    kg_novos       = int(novos_df["Quantidade"].sum() * KG_POR_CAIXA)
-    cx_novos       = int(novos_df["Quantidade"].sum())
+    kg_perdidos    = int(round(perdidos_df["Kg"].sum())) if not perdidos_df.empty else 0
+    cx_perdidos    = int(perdidos_df["Quantidade"].sum()) if not perdidos_df.empty else 0
+    kg_novos       = int(round(novos_df["Kg"].sum())) if not novos_df.empty else 0
+    cx_novos       = int(novos_df["Quantidade"].sum()) if not novos_df.empty else 0
     saldo_kg       = kg_novos - kg_perdidos
     saldo_cx       = cx_novos - cx_perdidos
     taxa_retencao  = (len(clientes_26) / len(clientes_25) * 100) if clientes_25 else 0
@@ -476,6 +500,7 @@ def gerar(ficheiro_fonte=None):
 
     # Variação geral 2025 vs 2026 anualizado
     var_abs = proj26 - ano25
+    var_abs_kg = proj26_kg - int(round(ano25_kg))
 
     # Texto de avaliação
     saldo_cor   = "green" if saldo_kg >= 0 else "red"
@@ -488,10 +513,10 @@ def gerar(ficheiro_fonte=None):
     paragrafos.append(
         f"<b>Tendência geral:</b> Com base no volume decorrido de 2026 (até {ultima_26_txt}, ≈ {meses_decorridos_26:.1f} meses), "
         f"a projecção anualizada aponta para "
-        f"<b>{proj26:,} caixas ({proj26*KG_POR_CAIXA:,} kg)</b>, face às <b>{ano25:,} caixas ({ano25*KG_POR_CAIXA:,} kg)</b> "
+        f"<b>{proj26:,} caixas ({proj26_kg:,} kg)</b>, face às <b>{ano25:,} caixas ({int(round(ano25_kg)):,} kg)</b> "
         f"registadas em 2025. Isso representa uma variação estimada de "
         f"<font color='{var_cor}'><b>{var:+.1f}%</b></font> "
-        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} caixas / {abs(int(var_abs))*KG_POR_CAIXA:,} kg).".replace(",",".")
+        f"({'queda' if var < 0 else 'crescimento'} de {abs(int(var_abs)):,} caixas / {abs(int(var_abs_kg)):,} kg).".replace(",",".")
     )
 
     # § 2 — Retenção de clientes
