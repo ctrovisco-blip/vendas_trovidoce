@@ -574,9 +574,16 @@ def gerar(ficheiro_fonte=None):
     for nome, m in grupos:
         lin_capt.append(
             f"• <b>{nome}:</b> {m['nov']} novos = {fmt(m['cx_nov'])} cx / {fmt(m['kg_nov'])} kg; "
-            f"saldo líquido <font color='{cor(m['saldo_kg'])}'><b>{fmts(m['saldo_cx'])} cx / {fmts(m['saldo_kg'])} kg</b></font>"
+            f"saldo líquido <font color='{cor(m['saldo_cx'])}'><b>{fmts(m['saldo_cx'])} cx</b></font> / "
+            f"<font color='{cor(m['saldo_kg'])}'><b>{fmts(m['saldo_kg'])} kg</b></font>"
         )
-    para_capt = "<b>Captação vs. perda</b> (novos menos perdidos, por grupo):<br/>" + "<br/>".join(lin_capt)
+    para_capt = (
+        "<b>Captação vs. perda</b> (novos menos perdidos, por grupo):<br/>"
+        + "<br/>".join(lin_capt)
+        + "<br/><i>Nota: no grupo Café, as caixas agregam formatos de peso diferente "
+          "(grão 6 kg, decaf. grão 1 kg, doses 0,325 kg); por isso o saldo em caixas e em kg "
+          "pode ter sinais opostos — o <b>kg</b> é a medida comparável.</i>"
+    )
 
     # § Resumo geral (todas as famílias)
     para_geral = (
@@ -584,8 +591,9 @@ def gerar(ficheiro_fonte=None):
         f"<b>{fmt(proj26)} cx ({fmt(proj26_kg)} kg)</b> vs {fmt(ano25)} cx ({fmt(ano25_kg)} kg) em 2025 "
         f"(<font color='{cor(var)}'><b>{var:+.1f}%</b></font>); taxa de retenção de <b>{taxa_retencao:.1f}%</b> "
         f"({len(perdidos)} perdidos / {len(novos)} novos); saldo líquido "
-        f"<font color='{cor(saldo_kg)}'><b>{fmts(saldo_cx)} cx / {fmts(saldo_kg)} kg</b></font> — "
-        f"{'os novos clientes <b>não compensam</b> o volume perdido' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido'}."
+        f"<font color='{cor(saldo_cx)}'><b>{fmts(saldo_cx)} cx</b></font> / "
+        f"<font color='{cor(saldo_kg)}'><b>{fmts(saldo_kg)} kg</b></font> — "
+        f"{'os novos clientes <b>não compensam</b> o volume perdido (em kg)' if saldo_kg < 0 else 'os novos clientes <b>superam</b> o volume perdido (em kg)'}."
     )
 
     # § Nota
