@@ -32,11 +32,15 @@ NOME_SAIDA    = "Analise_Logistica.pdf"
 
 # Pressupostos de custo
 CONSUMO_L_100  = 12.0            # litros por 100 km
-PRECO_GASOLEO  = {               # €/litro, média anual (ajustar conforme necessário)
-    2025: 1.55,
-    2026: 2.05,
+# Preço médio do gasóleo simples CEPSA / Moeve (€/litro), por ano.
+# Fonte: ERSE (preços médios por operador de bandeira) + preços de marca Moeve.
+# Ajustar conforme as facturas reais de abastecimento, se disponíveis.
+MARCA_COMBUSTIVEL = "CEPSA / Moeve"
+PRECO_GASOLEO  = {
+    2025: 1.70,
+    2026: 2.10,
 }
-PRECO_GASOLEO_DEFAULT = 1.80     # usado se o ano não constar do dicionário
+PRECO_GASOLEO_DEFAULT = 2.00     # usado se o ano não constar do dicionário
 
 # Carro de distribuição -> vendedor a quem os kms são imputados
 CARRO_DISTRIBUICAO = 14
@@ -133,9 +137,9 @@ def build_logistica(story, H, kms_por_ano, vendas_por_ano, mapa_nome):
     intro = (
         f"Estimativa do custo de combustível por vendedor, a partir dos quilómetros percorridos. "
         f"Pressupostos: consumo médio de <b>{CONSUMO_L_100:.0f} L/100 km</b> e preço médio do gasóleo "
-        f"(<b>{precos_txt}</b>). Os quilómetros do carro de distribuição (nº {CARRO_DISTRIBUICAO}) "
-        f"são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}, por ser a rota em que a venda e a entrega "
-        f"ocorrem em dias consecutivos."
+        f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
+        f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}, por ser a rota "
+        f"em que a venda e a entrega ocorrem em dias consecutivos."
     )
 
     blocos = [Paragraph("Custos Logísticos por Vendedor", s_secao), Paragraph(intro, s_corpo)]
