@@ -489,34 +489,56 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     ]))
 
     # ======================= 6. Clientes a rever =======================
-    # cli já tem um registo por cliente, com o vendedor PRINCIPAL e as vendas totais
+    # Apenas clientes com compras no ANO CORRENTE; vendedor/volume/dominante do ano em curso,
+    # para refletir a situação actual (clientes que mudaram de vendedor ou deixaram de comprar).
     nome_cli = (df.sort_values("Dt_ Emissao").groupby("N_ Clie_")["Cliente"].last())
+    ano_corrente = int(dfl["Ano"].max())
+    dfa = dfl[dfl["Ano"] == ano_corrente]
+
+    # vendedor principal e vendas do ano corrente, por cliente
+    cv_a = dfa.groupby(["N_ Clie_", "Vendedor"])["Total Liquido"].sum().reset_index()
+    prim_a = (cv_a.sort_values("Total Liquido", ascending=False)
+              .drop_duplicates("N_ Clie_").set_index("N_ Clie_")["Vendedor"])
+    cli_a = pd.DataFrame({
+        "Vendedor": prim_a,
+        "Vendas": dfa.groupby("N_ Clie_")["Total Liquido"].sum(),
+        "Concelho": dfg.groupby("N_ Clie_")["Concelho"].first(),
+    })
+    cli_a = cli_a[cli_a["Vendedor"].notna()].reset_index()
+
+    # dominante e nº de vendedores por concelho, também do ano corrente
+    dom_a = (dfa.groupby(["Concelho", "Vendedor"])["Total Liquido"].sum()
+             .reset_index().sort_values("Total Liquido", ascending=False)
+             .drop_duplicates("Concelho").set_index("Concelho")["Vendedor"])
+    nv_a = dfa.groupby("Concelho")["Vendedor"].nunique()
+
     cand = []
-    for _, r in cli.iterrows():
+    for _, r in cli_a.iterrows():
         conc = r["Concelho"]
-        if nv.get(conc, 0) <= 1:           # só concelhos com sobreposição
+        if nv_a.get(conc, 0) <= 1:            # só concelhos com sobreposição no ano corrente
             continue
-        dominante = dom.get(conc)
-        if dominante == r["Vendedor"]:     # já é o dominante
+        dominante = dom_a.get(conc)
+        if dominante == r["Vendedor"]:        # já é o dominante
             continue
-        if not (0 < r["Vendas"] < LIMIAR_BAIXO_VOLUME):   # baixo volume, mas com vendas reais
+        if not (0 < r["Vendas"] < LIMIAR_BAIXO_VOLUME):
             continue
         cand.append((r["Vendas"], nome_cli.get(r["N_ Clie_"], r["N_ Clie_"]),
                      conc, r["Vendedor"], dominante))
     cand.sort(key=lambda x: x[0])          # menor volume primeiro
-    linhas = [["Cliente", "Concelho", "Vendedor atual", "Vendas Líq.", "Sugestão (dominante)"]]
+    linhas = [["Cliente", "Concelho", "Vendedor atual", f"Vendas {ano_corrente}", "Sugestão (dominante)"]]
     for vnd, nome, conc, vatual, dmn in cand[:20]:
         linhas.append([str(nome), conc, _vshort(vatual), _eur(vnd), _vshort(dmn)])
     intro6 = (
-        f"Clientes de baixo volume (&lt; {_eur(LIMIAR_BAIXO_VOLUME)}/período) situados em concelhos já "
-        f"cobertos por outro vendedor, e cujo fornecedor actual não é o vendedor dominante da zona. "
-        f"São candidatos naturais a reafectação, reduzindo deslocações. "
+        f"Clientes <b>com compras em {ano_corrente}</b> (ano corrente), de baixo volume "
+        f"(&lt; {_eur(LIMIAR_BAIXO_VOLUME)}), situados em concelhos cobertos por mais do que um vendedor "
+        f"e cujo fornecedor actual não é o vendedor dominante da zona. São candidatos a reafectação, "
+        f"reduzindo deslocações. Clientes sem compras no ano corrente são ignorados. "
         f"Total identificado: <b>{len(cand)}</b> (mostrados os {min(20, len(cand))} de menor volume)."
     )
     story.append(KeepTogether([
         Paragraph("Clientes a Rever (otimização de rotas)", s_sub),
         Paragraph(intro6, s_corpo),
-        tabela(linhas, [5.5*cm, 3*cm, 2.6*cm, 2.2*cm, 3.2*cm]),
+        tabela(linhas, [5.5*cm, 3*cm, 2.6*cm, 2.4*cm, 3.2*cm]),
     ]))
 
     story.append(Spacer(1, 0.3*cm))
