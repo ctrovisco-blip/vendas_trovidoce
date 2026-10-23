@@ -60,6 +60,12 @@ LIMIAR_BAIXO_VOLUME = 2582      # ≈ mediana das vendas por cliente
 # cliente: se qualquer linha desse código tiver um nome genérico, o código é excluído.
 PADRAO_GENERICO = r"CF\s*Vdd|CONSUMIDOR\s*FINAL|CLIENTE\s*V\d"
 
+# Excluir documentos do tipo FS (faturas simplificadas / venda ao balcão) de toda a
+# Parte III (custo de combustível e análise geográfica/rotas). Não afeta as análises
+# de produto (café / outras famílias), onde os FS são vendas reais.
+EXCLUIR_FS = True
+SIGLA_EXCLUIR = ["FS"]
+
 # Cores
 AZUL_ESCURO      = colors.HexColor("#1F4E79")
 AZUL_MEDIO       = colors.HexColor("#2E75B6")
@@ -148,9 +154,12 @@ def preparar(ficheiro_vendas, ficheiro_clientes):
     df["Concelho"] = df["Concelho"].fillna("(sem concelho)")
     df["Distrito"] = df["Distrito"].fillna("(sem distrito)")
 
+    # Parte III considera apenas faturas (FAC), excluindo FS (venda ao balcão)
+    base = df[~df["Sigla"].isin(SIGLA_EXCLUIR)] if EXCLUIR_FS else df
+
     # vendas líquidas por vendedor/ano (para a secção de combustível)
     vendas_por_ano = {}
-    for (ano, vend), val in df.groupby(["Ano", "N_ Vend_"])["Total Liquido"].sum().items():
+    for (ano, vend), val in base.groupby(["Ano", "N_ Vend_"])["Total Liquido"].sum().items():
         vendas_por_ano.setdefault(int(ano), {})[int(vend)] = float(val)
 
     return df, mapa_nome, vendas_por_ano
@@ -229,20 +238,14 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
             nome = f"{nome} (c/ carro {CARRO_DISTRIBUICAO})"
         return nome
 
-    # ======================= 1. Custo de combustível por vendedor =======================
-    precos_txt = "; ".join(f"{a}: {preco_gasoleo(a):.2f} €/l" for a in anos)
-    intro = (
-        f"Estimativa do custo de combustível por vendedor, a partir dos quilómetros percorridos. "
-        f"Pressupostos: consumo médio de <b>{CONSUMO_L_100:.0f} L/100 km</b> e preço médio do gasóleo "
-        f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
-        f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
-    )
     # ======================= Agregados geográficos (nível cliente) =======================
-    # Excluir clientes genéricos (balcões de caixa) da análise geográfica/rotas — por CÓDIGO
+    # Excluir clientes genéricos (balcões de caixa) e, se configurado, documentos FS
     cods_genericos = set(df.loc[
         df["Cliente"].astype(str).str.contains(PADRAO_GENERICO, case=False, na=False), "N_ Clie_"
     ].unique())
     dfg = df[~df["N_ Clie_"].isin(cods_genericos)].copy()
+    if EXCLUIR_FS:
+        dfg = dfg[~dfg["Sigla"].isin(SIGLA_EXCLUIR)].copy()
     dfl = dfg[dfg["Vendedor"].str.contains("/", na=False)].copy()   # linhas de vendedores de rota
 
     # Cada cliente é atribuído ao seu VENDEDOR PRINCIPAL (o de maior volume de vendas),
@@ -324,6 +327,8 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         f"Pressupostos: consumo médio de <b>{CONSUMO_L_100:.0f} L/100 km</b> e preço médio do gasóleo "
         f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
         f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
+        + (" <b>Toda esta Parte III considera apenas faturas (FAC), excluindo faturas simplificadas "
+           "(FS)/venda ao balcão.</b>" if EXCLUIR_FS else "")
     )
     story.append(Paragraph("Custo de Combustível por Vendedor", s_sub))
     story.append(Paragraph(intro, s_corpo))
