@@ -4,3 +4,5 @@ Clientes.xls
 _clientes_in/
 analise_vendas_*/
 Kms_frota.xlsx
+__pycache__/
+*.pyc
