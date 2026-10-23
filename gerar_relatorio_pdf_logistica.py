@@ -54,6 +54,11 @@ VENDEDOR_DISTRIBUICAO = 31
 # Limiar para "clientes a rever" (vendas líquidas do cliente abaixo deste valor)
 LIMIAR_BAIXO_VOLUME = 2582      # ≈ mediana das vendas por cliente
 
+# Clientes genéricos (balcões de venda a dinheiro) a EXCLUIR da análise geográfica/rotas.
+# Continuam a contar nas vendas totais de cada vendedor (secção de combustível),
+# mas não representam uma localização real a visitar.
+PADRAO_GENERICO = r"CF\s*Vdd|CONSUMIDOR\s*FINAL"
+
 # Cores
 AZUL_ESCURO      = colors.HexColor("#1F4E79")
 AZUL_MEDIO       = colors.HexColor("#2E75B6")
@@ -232,7 +237,9 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
     )
     # ======================= Agregados geográficos (usados em vários blocos) =======================
-    df_c = df[df["Vendedor"].str.contains("/", na=False)].copy()   # só vendedores de rota
+    # Excluir clientes genéricos (balcões de caixa) da análise geográfica/rotas
+    dfg = df[~df["Cliente"].astype(str).str.contains(PADRAO_GENERICO, case=False, na=False)].copy()
+    df_c = dfg[dfg["Vendedor"].str.contains("/", na=False)].copy()   # só vendedores de rota
     conc_tot_c   = df_c.groupby("Concelho")["Total Liquido"].sum()
     vendas_v_total = df_c.groupby("Vendedor")["Total Liquido"].sum()
     vendas_vc    = df_c.groupby(["Vendedor", "Concelho"])["Total Liquido"].sum()
@@ -322,7 +329,16 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         story.append(KeepTogether([Paragraph(f"<b>{ano}</b> — preço do gasóleo: {p:.2f} €/l", s_corpo), t]))
 
     # ======================= 2. Vendas por distrito =======================
-    gd = df.groupby("Distrito").agg(
+    excluido = df["Total Liquido"].sum() - dfg["Total Liquido"].sum()
+    story.append(Paragraph("Análise Geográfica e de Rotas", s_sub))
+    story.append(Paragraph(
+        f"A análise geográfica seguinte exclui os clientes genéricos de venda a dinheiro "
+        f"(\"CF Vdd\"/\"Consumidor Final\"), que são balcões de caixa sem localização real a visitar "
+        f"(<b>{_eur(excluido)}</b> de vendas, repartidas pelos vendedores). Estes continuam a contar "
+        f"nas vendas totais e no custo/vendas da secção de combustível acima.",
+        s_corpo
+    ))
+    gd = dfg.groupby("Distrito").agg(
         Vendas=("Total Liquido", "sum"), Clientes=("N_ Clie_", "nunique")
     ).sort_values("Vendas", ascending=False)
     tot_vd = gd["Vendas"].sum()
@@ -335,7 +351,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     ]))
 
     # ======================= 3. Vendas por concelho + vendedor dominante =======================
-    gc = df.groupby("Concelho").agg(
+    gc = dfg.groupby("Concelho").agg(
         Vendas=("Total Liquido", "sum"), Clientes=("N_ Clie_", "nunique")
     ).sort_values("Vendas", ascending=False)
     # (dom e nv já calculados no topo)
