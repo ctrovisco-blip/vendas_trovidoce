@@ -56,8 +56,9 @@ LIMIAR_BAIXO_VOLUME = 2582      # ≈ mediana das vendas por cliente
 
 # Clientes genéricos (balcões de venda a dinheiro) a EXCLUIR da análise geográfica/rotas.
 # Continuam a contar nas vendas totais de cada vendedor (secção de combustível),
-# mas não representam uma localização real a visitar.
-PADRAO_GENERICO = r"CF\s*Vdd|CONSUMIDOR\s*FINAL"
+# mas não representam uma localização real a visitar. A exclusão é por CÓDIGO de
+# cliente: se qualquer linha desse código tiver um nome genérico, o código é excluído.
+PADRAO_GENERICO = r"CF\s*Vdd|CONSUMIDOR\s*FINAL|CLIENTE\s*V\d"
 
 # Cores
 AZUL_ESCURO      = colors.HexColor("#1F4E79")
@@ -236,18 +237,35 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
         f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
     )
-    # ======================= Agregados geográficos (usados em vários blocos) =======================
-    # Excluir clientes genéricos (balcões de caixa) da análise geográfica/rotas
-    dfg = df[~df["Cliente"].astype(str).str.contains(PADRAO_GENERICO, case=False, na=False)].copy()
-    df_c = dfg[dfg["Vendedor"].str.contains("/", na=False)].copy()   # só vendedores de rota
-    conc_tot_c   = df_c.groupby("Concelho")["Total Liquido"].sum()
-    vendas_v_total = df_c.groupby("Vendedor")["Total Liquido"].sum()
-    vendas_vc    = df_c.groupby(["Vendedor", "Concelho"])["Total Liquido"].sum()
-    ncli_vc      = df_c.groupby(["Vendedor", "Concelho"])["N_ Clie_"].nunique()
-    dom = (df_c.groupby(["Concelho", "Vendedor"])["Total Liquido"].sum()
-           .reset_index().sort_values("Total Liquido", ascending=False)
+    # ======================= Agregados geográficos (nível cliente) =======================
+    # Excluir clientes genéricos (balcões de caixa) da análise geográfica/rotas — por CÓDIGO
+    cods_genericos = set(df.loc[
+        df["Cliente"].astype(str).str.contains(PADRAO_GENERICO, case=False, na=False), "N_ Clie_"
+    ].unique())
+    dfg = df[~df["N_ Clie_"].isin(cods_genericos)].copy()
+    dfl = dfg[dfg["Vendedor"].str.contains("/", na=False)].copy()   # linhas de vendedores de rota
+
+    # Cada cliente é atribuído ao seu VENDEDOR PRINCIPAL (o de maior volume de vendas),
+    # evitando que uma linha residual (ex.: oferta de 0 €) o associe a outro vendedor.
+    cli_vend = dfl.groupby(["N_ Clie_", "Vendedor"])["Total Liquido"].sum().reset_index()
+    principal = (cli_vend.sort_values("Total Liquido", ascending=False)
+                 .drop_duplicates("N_ Clie_").set_index("N_ Clie_")["Vendedor"])
+    cli = pd.DataFrame({
+        "Vendedor": principal,
+        "Vendas": dfl.groupby("N_ Clie_")["Total Liquido"].sum(),
+        "Concelho": dfg.groupby("N_ Clie_")["Concelho"].first(),
+    })
+    cli = cli[cli["Vendedor"].notna()].reset_index()   # colunas: N_ Clie_, Vendedor, Vendas, Concelho
+    df_c = cli   # alias usado nos blocos seguintes (nível cliente)
+
+    conc_tot_c     = cli.groupby("Concelho")["Vendas"].sum()
+    vendas_v_total = cli.groupby("Vendedor")["Vendas"].sum()
+    vendas_vc      = cli.groupby(["Vendedor", "Concelho"])["Vendas"].sum()
+    ncli_vc        = cli.groupby(["Vendedor", "Concelho"])["N_ Clie_"].nunique()
+    dom = (cli.groupby(["Concelho", "Vendedor"])["Vendas"].sum()
+           .reset_index().sort_values("Vendas", ascending=False)
            .drop_duplicates("Concelho").set_index("Concelho")["Vendedor"])
-    nv = df_c.groupby("Concelho")["Vendedor"].nunique()
+    nv = cli.groupby("Concelho")["Vendedor"].nunique()
     label_custo = {}
     for num, c in custo_total_v.items():
         lab = mapa_nome.get(num, str(num))
@@ -423,7 +441,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     conc_multi = nv[nv > 1].sort_values(ascending=False)
     linhas = [["Concelho", "Nº Vend.", "Vendedores (vendas líq.)"]]
     for conc in conc_multi.index:
-        sub = (df_c[df_c["Concelho"] == conc].groupby("Vendedor")["Total Liquido"].sum()
+        sub = (df_c[df_c["Concelho"] == conc].groupby("Vendedor")["Vendas"].sum()
                .sort_values(ascending=False))
         detalhe = ", ".join(f"{_vshort(v)} ({_eur(val)})" for v, val in sub.items())
         linhas.append([conc, str(int(conc_multi[conc])), detalhe])
@@ -466,19 +484,17 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     ]))
 
     # ======================= 6. Clientes a rever =======================
-    vc = df_c.groupby(["N_ Clie_", "Vendedor", "Concelho"]).agg(
-        Vendas=("Total Liquido", "sum")
-    ).reset_index()
+    # cli já tem um registo por cliente, com o vendedor PRINCIPAL e as vendas totais
     nome_cli = (df.sort_values("Dt_ Emissao").groupby("N_ Clie_")["Cliente"].last())
     cand = []
-    for _, r in vc.iterrows():
+    for _, r in cli.iterrows():
         conc = r["Concelho"]
         if nv.get(conc, 0) <= 1:           # só concelhos com sobreposição
             continue
         dominante = dom.get(conc)
         if dominante == r["Vendedor"]:     # já é o dominante
             continue
-        if r["Vendas"] >= LIMIAR_BAIXO_VOLUME:
+        if not (0 < r["Vendas"] < LIMIAR_BAIXO_VOLUME):   # baixo volume, mas com vendas reais
             continue
         cand.append((r["Vendas"], nome_cli.get(r["N_ Clie_"], r["N_ Clie_"]),
                      conc, r["Vendedor"], dominante))
