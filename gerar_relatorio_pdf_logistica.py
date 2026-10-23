@@ -231,8 +231,77 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
         f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
     )
-    blocos = [Paragraph("Custos Logísticos e Geografia de Rotas", s_secao),
-              Paragraph(intro, s_corpo)]
+    # ======================= Agregados geográficos (usados em vários blocos) =======================
+    df_c = df[df["Vendedor"].str.contains("/", na=False)].copy()   # só vendedores de rota
+    conc_tot_c   = df_c.groupby("Concelho")["Total Liquido"].sum()
+    vendas_v_total = df_c.groupby("Vendedor")["Total Liquido"].sum()
+    vendas_vc    = df_c.groupby(["Vendedor", "Concelho"])["Total Liquido"].sum()
+    ncli_vc      = df_c.groupby(["Vendedor", "Concelho"])["N_ Clie_"].nunique()
+    dom = (df_c.groupby(["Concelho", "Vendedor"])["Total Liquido"].sum()
+           .reset_index().sort_values("Total Liquido", ascending=False)
+           .drop_duplicates("Concelho").set_index("Concelho")["Vendedor"])
+    nv = df_c.groupby("Concelho")["Vendedor"].nunique()
+    label_custo = {}
+    for num, c in custo_total_v.items():
+        lab = mapa_nome.get(num, str(num))
+        label_custo[lab] = label_custo.get(lab, 0) + c
+
+    # Incursões marginais: vendedor com < 20% das vendas de um concelho dominado por outro
+    incursoes = []
+    for (vlabel, conc), vnd in vendas_vc.items():
+        if dom.get(conc) == vlabel:
+            continue
+        ct = conc_tot_c.get(conc, 0)
+        share = (vnd / ct) if ct else 0
+        if share >= 0.20:
+            continue
+        vt = vendas_v_total.get(vlabel, 0)
+        cimp = (label_custo.get(vlabel, 0) * (vnd / vt)) if vt else 0
+        incursoes.append({
+            "custo": cimp, "vend": vlabel, "conc": conc, "dom": dom.get(conc),
+            "ncli": int(ncli_vc[(vlabel, conc)]), "vendas": vnd, "share": share * 100,
+        })
+    incursoes.sort(key=lambda x: x["custo"], reverse=True)
+
+    # ======================= Resumo executivo =======================
+    tot_cimp = sum(i["custo"] for i in incursoes)
+    tot_cli  = sum(i["ncli"] for i in incursoes)
+    intro_exec = (
+        f"Foram identificadas <b>{len(incursoes)} incursões marginais</b> — concelhos em que um vendedor "
+        f"faz menos de 20% das vendas de uma zona dominada por outro colega. No conjunto envolvem "
+        f"<b>{tot_cli} clientes</b> e cerca de <b>{_eur(tot_cimp)}</b> de custo logístico imputado. "
+        f"Consolidar estes clientes no vendedor dominante de cada concelho reduz deslocações sobrepostas. "
+        f"Oportunidades de maior impacto (custo libertável estimado):"
+    )
+    linhas = [["Concelho", "Mover de → para", "Nº cli.", "Vendas que movem", "Custo log. (est.)"]]
+    for i in incursoes[:8]:
+        linhas.append([
+            i["conc"], f"{_vshort(i['vend'])} → {_vshort(i['dom'])}", str(i["ncli"]),
+            _eur(i["vendas"]), _eur(i["custo"]),
+        ])
+    story.append(KeepTogether([
+        Paragraph("Custos Logísticos e Geografia de Rotas", s_secao),
+        Paragraph("Resumo Executivo — Reafectação de Rotas", s_sub),
+        Paragraph(intro_exec, s_corpo),
+        tabela(linhas, [3.6*cm, 4.6*cm, 1.6*cm, 3*cm, 2.9*cm]),
+        Spacer(1, 0.15*cm),
+        Paragraph(
+            "Leitura: \"custo log. (est.)\" é o custo de combustível imputado a essa incursão "
+            "(proporcional às vendas — indicativo, não kms reais). Mover clientes de maior volume tem "
+            "implicações comerciais e deve ser avaliado caso a caso; a lista detalhada está em "
+            "\"Clientes a Rever\".", s_nota),
+    ]))
+
+    # ======================= Custo de combustível por vendedor =======================
+    precos_txt = "; ".join(f"{a}: {preco_gasoleo(a):.2f} €/l" for a in anos)
+    intro = (
+        f"Estimativa do custo de combustível por vendedor, a partir dos quilómetros percorridos. "
+        f"Pressupostos: consumo médio de <b>{CONSUMO_L_100:.0f} L/100 km</b> e preço médio do gasóleo "
+        f"<b>{MARCA_COMBUSTIVEL}</b> (<b>{precos_txt}</b>). Os quilómetros do carro de distribuição "
+        f"(nº {CARRO_DISTRIBUICAO}) são imputados ao vendedor {VENDEDOR_DISTRIBUICAO}."
+    )
+    story.append(Paragraph("Custo de Combustível por Vendedor", s_sub))
+    story.append(Paragraph(intro, s_corpo))
     for ano in anos:
         kms_ano = kms_por_ano.get(ano, {}); vendas_ano = vendas_por_ano.get(ano, {}); p = preco_gasoleo(ano)
         linhas = [["Vendedor", "Kms", "Litros", "Custo Gasóleo", "Vendas Líq.", "Custo/Vendas"]]
@@ -250,13 +319,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
             ("BACKGROUND", (0, len(linhas)-1), (-1, len(linhas)-1), AZUL_CLARO),
             ("FONTNAME", (0, len(linhas)-1), (-1, len(linhas)-1), "Helvetica-Bold"),
         ]))
-        blocos.append(Paragraph(f"<b>{ano}</b> — preço do gasóleo: {p:.2f} €/l", s_corpo))
-        blocos.append(t)
-    story.append(KeepTogether(blocos[:3]))
-    for b in blocos[3:]:
-        story.append(b)
-
-    df_c = df[df["Vendedor"].str.contains("/", na=False)].copy()   # só vendedores de rota
+        story.append(KeepTogether([Paragraph(f"<b>{ano}</b> — preço do gasóleo: {p:.2f} €/l", s_corpo), t]))
 
     # ======================= 2. Vendas por distrito =======================
     gd = df.groupby("Distrito").agg(
@@ -275,11 +338,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     gc = df.groupby("Concelho").agg(
         Vendas=("Total Liquido", "sum"), Clientes=("N_ Clie_", "nunique")
     ).sort_values("Vendas", ascending=False)
-    # vendedor dominante (por vendas) de cada concelho
-    dom = (df_c.groupby(["Concelho", "Vendedor"])["Total Liquido"].sum()
-           .reset_index().sort_values("Total Liquido", ascending=False)
-           .drop_duplicates("Concelho").set_index("Concelho")["Vendedor"])
-    nv = df_c.groupby("Concelho")["Vendedor"].nunique()
+    # (dom e nv já calculados no topo)
     linhas = [["Concelho", "Vendas Líq.", "% Total", "Clientes", "Nº Vend.", "Vendedor dominante"]]
     for conc, r in gc.head(18).iterrows():
         linhas.append([
@@ -310,13 +369,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
     ]))
 
     # ======================= 5. Custo logístico imputado por concelho =======================
-    # custo do vendedor repartido pelos concelhos proporcionalmente às suas vendas
-    vendas_v_total = df_c.groupby("Vendedor")["Total Liquido"].sum()
-    vendas_vc = df_c.groupby(["Vendedor", "Concelho"])["Total Liquido"].sum()
-    # mapear nº vendedor -> label para custo
-    label_custo = {}
-    for num, c in custo_total_v.items():
-        label_custo[mapa_nome.get(num, str(num))] = label_custo.get(mapa_nome.get(num, str(num)), 0) + c
+    # (vendas_v_total, vendas_vc e label_custo já calculados no topo)
     custo_conc = {}
     for (vlabel, conc), vnd in vendas_vc.items():
         vt = vendas_v_total.get(vlabel, 0)
