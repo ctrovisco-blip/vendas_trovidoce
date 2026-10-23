@@ -350,6 +350,59 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
         tabela(linhas, [3.6*cm, 2.8*cm, 1.7*cm, 1.7*cm, 1.6*cm, 3.6*cm]),
     ]))
 
+    # ======================= 3b. Grelha concelho x vendedor =======================
+    def _vnum(label):
+        try:
+            return int(str(label).split("/")[0])
+        except ValueError:
+            return 9999
+    vends_grelha = sorted(df_c["Vendedor"].unique(), key=_vnum)
+    # concelhos por ordem de vendas (todos)
+    concelhos_ord = list(gc.index)
+    cab = ["Concelho"] + [f"{_vnum(v):02d}" for v in vends_grelha] + ["Nº V."]
+    grelha = [cab]
+    for conc in concelhos_ord:
+        linha = [conc]
+        for v in vends_grelha:
+            n = int(ncli_vc.get((v, conc), 0))
+            linha.append(str(n) if n else "")
+        linha.append(str(int(nv.get(conc, 0))))
+        grelha.append(linha)
+    # linha final: nº de concelhos servidos por cada vendedor
+    rodape = ["Concelhos"]
+    for v in vends_grelha:
+        rodape.append(str(df_c[df_c["Vendedor"] == v]["Concelho"].nunique()))
+    rodape.append("")
+    grelha.append(rodape)
+
+    ncol = len(vends_grelha)
+    larg = [3.4*cm] + [ (11.6/ncol)*cm ] * ncol + [1.2*cm]
+    t_grelha = tabela(grelha, larg)
+    # realçar célula do vendedor dominante de cada concelho
+    estilos_extra = []
+    for ri, conc in enumerate(concelhos_ord, start=1):
+        dvend = dom.get(conc)
+        if dvend in vends_grelha:
+            ci = 1 + vends_grelha.index(dvend)
+            estilos_extra.append(("BACKGROUND", (ci, ri), (ci, ri), AZUL_CLARO))
+            estilos_extra.append(("FONTNAME", (ci, ri), (ci, ri), "Helvetica-Bold"))
+    # linha de rodapé a cinzento
+    estilos_extra.append(("BACKGROUND", (0, len(grelha)-1), (-1, len(grelha)-1), AZUL_MUITO_CLARO))
+    estilos_extra.append(("FONTNAME", (0, len(grelha)-1), (-1, len(grelha)-1), "Helvetica-Bold"))
+    t_grelha.setStyle(TableStyle(estilos_extra))
+
+    legenda = "Vendedores: " + "  ·  ".join(f"<b>{_vnum(v):02d}</b> {_vshort(v)}" for v in vends_grelha)
+    story.append(KeepTogether([
+        Paragraph("Grelha Concelho × Vendedor (nº de clientes)", s_sub),
+        Paragraph(
+            "Número de clientes de cada vendedor em cada concelho. Célula a azul = vendedor dominante "
+            "(maior volume de vendas) da zona. A última linha indica quantos concelhos cada vendedor serve.",
+            s_corpo),
+        t_grelha,
+        Spacer(1, 0.1*cm),
+        Paragraph(legenda, s_nota),
+    ]))
+
     # ======================= 4. Sobreposição de rotas =======================
     conc_multi = nv[nv > 1].sort_values(ascending=False)
     linhas = [["Concelho", "Nº Vend.", "Vendedores (vendas líq.)"]]
