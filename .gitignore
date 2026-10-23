@@ -1,3 +1,6 @@
-__pycache__/
-*.pyc
-I:*
+# Dados pessoais de clientes (NIF, moradas) — não versionar
+Clientes.XLS
+Clientes.xls
+_clientes_in/
+analise_vendas_*/
+Kms_frota.xlsx

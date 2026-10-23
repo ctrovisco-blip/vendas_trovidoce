@@ -36,7 +36,7 @@ NOME_SAIDA    = "Análise_Vendas.pdf"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def gerar(ficheiro_vendas=None, ficheiro_kms=None):
+def gerar(ficheiro_vendas=None, ficheiro_kms=None, ficheiro_clientes=None):
     # Garantir que os sub-módulos procuram na mesma pasta
     for mod in (cafe, outras, logistica):
         mod.PASTA_FONTE = PASTA_FONTE
@@ -45,6 +45,8 @@ def gerar(ficheiro_vendas=None, ficheiro_kms=None):
         ficheiro_vendas = cafe.encontrar_ficheiro_fonte()
     if ficheiro_kms is None:
         ficheiro_kms = logistica.encontrar_ficheiro_kms()
+    if ficheiro_clientes is None:
+        ficheiro_clientes = logistica.encontrar_ficheiro_clientes()
 
     os.makedirs(PASTA_DESTINO, exist_ok=True)
     tmp = tempfile.mkdtemp(prefix="analise_vendas_")
@@ -61,8 +63,8 @@ def gerar(ficheiro_vendas=None, ficheiro_kms=None):
     outras.PASTA_DESTINO, outras.NOME_SAIDA = tmp, "parte_outras.pdf"
     outras.gerar(ficheiro_vendas)
 
-    # Parte III — Logística
-    logistica.gerar(ficheiro_vendas, ficheiro_kms, saida=p_log)
+    # Parte III — Logística + Geografia/Rotas
+    logistica.gerar(ficheiro_vendas, ficheiro_kms, ficheiro_clientes, saida=p_log)
 
     # Fundir
     saida = os.path.join(PASTA_DESTINO, NOME_SAIDA)
