@@ -397,7 +397,7 @@ def build(story, H, df, mapa_nome, vendas_por_ano, kms_por_ano):
             return 9999
     vends_grelha = sorted(df_c["Vendedor"].unique(), key=_vnum)
     # concelhos por ordem de vendas (todos)
-    concelhos_ord = list(gc.index)
+    concelhos_ord = [c for c in gc.index if nv.get(c, 0) > 0]   # exclui concelhos sem vendedores de rota
     cab = ["Concelho"] + [f"{_vnum(v):02d}" for v in vends_grelha] + ["Nº V."]
     grelha = [cab]
     for conc in concelhos_ord:
